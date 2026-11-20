@@ -1,0 +1,18 @@
+{
+  "name": "E-Ink 專屬電子書閱讀器",
+  "short_name": "E-Ink閱讀器",
+  "description": "專為黑白電子紙打造的高對比、零動畫離線電子書閱讀器",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "./bookmark_2.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

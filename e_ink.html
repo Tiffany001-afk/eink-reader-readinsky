@@ -1,0 +1,2283 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#ffffff">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>E-Ink 專屬電子書閱讀器 (離線版)</title>
+    <!-- PWA Manifest (於網頁伺服器 / PWABuilder 環境生效) -->
+    <link rel="manifest" href="./manifest.json">
+
+    <style>
+        /* =========================================================
+           100% 離線內建高對比 E-Ink 樣式（完全不依賴網路 CSS CDN）
+           ========================================================= */
+        :root {
+            --bg: #ffffff;
+            --fg: #000000;
+            --border: #000000;
+            --muted: #555555;
+            --overlay: rgba(255, 255, 255, 0.92);
+        }
+
+        html.dark {
+            --bg: #000000;
+            --fg: #ffffff;
+            --border: #ffffff;
+            --muted: #bbbbbb;
+            --overlay: rgba(0, 0, 0, 0.92);
+        }
+
+        /* E-Ink 專用：強制移除所有過場動畫、陰影與漸層，避免殘影 */
+        * {
+            box-sizing: border-box;
+            transition: none !important;
+            animation: none !important;
+            box-shadow: none !important;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg);
+            color: var(--fg);
+            font-family: -apple-system, BlinkMacSystemFont, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            border: 6px solid var(--border);
+        }
+
+        /* 隱藏原生捲軸 */
+        ::-webkit-scrollbar {
+            display: none;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* 通用按鈕與表單元件 */
+        .eink-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border: 2px solid var(--border);
+            background-color: var(--bg);
+            color: var(--fg);
+            padding: 6px 12px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            white-space: nowrap;
+            user-select: none;
+        }
+
+        .eink-btn:active {
+            background-color: var(--fg);
+            color: var(--bg);
+        }
+
+        .eink-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .eink-btn-full {
+            width: 100%;
+            padding: 10px 12px;
+        }
+
+        .eink-select,
+        .eink-input {
+            width: 100%;
+            border: 2px solid var(--border);
+            background-color: var(--bg);
+            color: var(--fg);
+            padding: 8px;
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        /* 頂部工具列 */
+        .app-header {
+            border-bottom: 4px solid var(--border);
+            padding: 8px 12px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-shrink: 0;
+            z-index: 30;
+            background-color: var(--bg);
+            position: relative;
+        }
+
+        .header-group {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            position: relative;
+        }
+
+        .dropdown-anchor {
+            position: relative;
+        }
+
+        /* 雲端匯入下拉選單 */
+        .cloud-menu {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            width: 224px;
+            background-color: var(--bg);
+            border: 4px solid var(--border);
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .cloud-menu button {
+            text-align: left;
+            padding: 10px 12px;
+            font-size: 15px;
+            font-weight: 700;
+            border: none;
+            border-bottom: 2px solid var(--border);
+            background-color: var(--bg);
+            color: var(--fg);
+            cursor: pointer;
+        }
+
+        .cloud-menu button:last-child {
+            border-bottom: none;
+        }
+
+        .cloud-menu button:active {
+            background-color: var(--fg);
+            color: var(--bg);
+        }
+
+        /* 畫線註記浮動選單 */
+        .highlight-menu {
+            position: absolute;
+            top: calc(100% + 6px);
+            right: 0;
+            background-color: var(--bg);
+            border: 4px solid var(--border);
+            padding: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            z-index: 50;
+            min-width: 260px;
+            justify-content: flex-end;
+        }
+
+        .color-btn {
+            width: 32px;
+            height: 32px;
+            border: 2px solid #000000;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        html.dark .color-btn {
+            border-color: #ffffff;
+        }
+
+        .bookmark-icon {
+            width: 16px;
+            height: 16px;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        html.dark .bookmark-img {
+            filter: invert(1);
+        }
+
+        /* 主容器與側邊欄 */
+        .app-body {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            position: relative;
+            overflow: hidden;
+            background-color: var(--bg);
+        }
+
+        .sidebar {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            width: 78%;
+            max-width: 320px;
+            background-color: var(--bg);
+            z-index: 25;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-left {
+            left: 0;
+            border-right: 4px solid var(--border);
+        }
+
+        .sidebar-right {
+            right: 0;
+            border-left: 4px solid var(--border);
+        }
+
+        .sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 4px solid var(--border);
+        }
+
+        .sidebar-title {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .sidebar-action-bar {
+            padding: 12px;
+            border-bottom: 4px solid var(--border);
+        }
+
+        .sidebar-content {
+            padding: 16px;
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .sidebar-list {
+            list-style: none;
+            margin: 0;
+            padding: 14px;
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-weight: 700;
+        }
+
+        .muted-text {
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        .setting-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .setting-label {
+            font-weight: 700;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .range-slider {
+            width: 100%;
+            height: 24px;
+            accent-color: var(--fg);
+        }
+
+        .toc-item-btn {
+            width: 100%;
+            text-align: left;
+            padding: 10px 8px;
+            border: none;
+            border-bottom: 2px solid var(--border);
+            background-color: var(--bg);
+            color: var(--fg);
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .toc-item-btn:active {
+            background-color: var(--fg);
+            color: var(--bg);
+        }
+
+        .bookmark-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 8px;
+        }
+
+        .bookmark-jump-btn {
+            flex: 1;
+            min-width: 0;
+            text-align: left;
+            padding: 6px 4px;
+            border: none;
+            background-color: var(--bg);
+            color: var(--fg);
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .bookmark-jump-btn:active {
+            background-color: var(--fg);
+            color: var(--bg);
+        }
+
+        .bookmark-del-btn {
+            border: 2px solid var(--border);
+            background-color: var(--bg);
+            color: var(--fg);
+            padding: 4px 8px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .bookmark-del-btn:active {
+            background-color: var(--fg);
+            color: var(--bg);
+        }
+
+        /* 閱讀主畫面 */
+        .reader-main {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            position: relative;
+            padding: 10px 20px;
+            overflow: hidden;
+        }
+
+        #epubViewer {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        /* TXT 單頁分頁容器 */
+        #txtViewer {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            scroll-behavior: auto;
+        }
+
+        #txtContent {
+            height: 100%;
+            column-gap: 0;
+            column-fill: auto;
+            word-break: break-word;
+            text-align: justify;
+            white-space: pre-wrap;
+            font-size: 24px;
+            line-height: 1.8;
+            font-family: inherit;
+        }
+
+        /* TXT 直排模式（由右至左） */
+        #txtViewer.vertical-mode #txtContent {
+            writing-mode: vertical-rl;
+            -webkit-writing-mode: vertical-rl;
+            column-width: auto !important;
+            width: auto;
+            min-width: 100%;
+            height: 100%;
+        }
+
+        .highlight-bg {
+            color: #000000 !important;
+            padding: 0 2px;
+        }
+
+        /* 底部控制列 */
+        .app-footer {
+            height: 62px;
+            border-top: 4px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            z-index: 10;
+            background-color: var(--bg);
+        }
+
+        .page-btn {
+            height: 100%;
+            padding: 0 24px;
+            font-size: 19px;
+            font-weight: 700;
+            border: none;
+            background-color: var(--bg);
+            color: var(--fg);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .page-btn-prev {
+            border-right: 4px solid var(--border);
+        }
+
+        .page-btn-next {
+            border-left: 4px solid var(--border);
+        }
+
+        .page-btn:active {
+            background-color: var(--fg);
+            color: var(--bg);
+        }
+
+        .page-info {
+            font-weight: 700;
+            font-size: 16px;
+            padding: 0 12px;
+            text-align: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* 雲端匯入視窗 */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--overlay);
+            padding: 16px;
+        }
+
+        .modal-box {
+            width: 100%;
+            max-width: 440px;
+            background-color: var(--bg);
+            border: 4px solid var(--border);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 4px solid var(--border);
+            padding-bottom: 8px;
+        }
+
+        .modal-title {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .modal-desc {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 700;
+            line-height: 1.6;
+        }
+
+        .modal-status {
+            border: 2px solid var(--border);
+            padding: 8px;
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1.5;
+        }
+
+        .modal-status a {
+            color: var(--fg);
+            text-decoration: underline;
+        }
+
+        .modal-divider {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding-top: 10px;
+            border-top: 2px solid var(--border);
+        }
+
+        /* 離線狀態徽章 */
+        .offline-badge {
+            font-size: 12px;
+            border: 2px solid var(--border);
+            padding: 4px 8px;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        /* 電子紙高對比 Toast 提示 */
+        .toast-box {
+            position: fixed;
+            bottom: 76px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 60;
+            background-color: var(--fg);
+            color: var(--bg);
+            border: 4px solid var(--border);
+            padding: 10px 18px;
+            font-weight: 700;
+            font-size: 15px;
+            max-width: 90vw;
+            text-align: center;
+        }
+
+        @media (min-width: 768px) {
+            .reader-main {
+                padding: 12px 36px;
+            }
+            .page-btn {
+                padding: 0 44px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 頂部工具列 -->
+    <header class="app-header">
+        <div class="header-group">
+            <label class="eink-btn">
+                匯入書籍(EPUB/TXT)
+                <input type="file" id="fileInput" accept=".epub,.txt" class="hidden">
+            </label>
+
+            <div class="dropdown-anchor">
+                <button id="btnCloudImport" type="button" class="eink-btn">
+                    從雲端匯入
+                </button>
+                <div id="cloudImportMenu" class="cloud-menu hidden">
+                    <button type="button" class="cloud-source-btn" data-provider="google">1. Google雲端</button>
+                    <button type="button" class="cloud-source-btn" data-provider="mega">2. Mega雲端</button>
+                    <button type="button" class="cloud-source-btn" data-provider="readmoo">3. Readmoo 讀墨</button>
+                    <button type="button" class="cloud-source-btn" data-provider="kobo">4. Kobo</button>
+                    <button type="button" class="cloud-source-btn" data-provider="kindle">5. Kindle</button>
+                    <button type="button" class="cloud-source-btn" data-provider="hyread">6. HyRead 個人書房</button>
+                    <button type="button" class="cloud-source-btn" data-provider="boox">7. 文石雲端</button>
+                </div>
+            </div>
+
+            <button id="btnToggleTOC" type="button" class="eink-btn">
+                選擇章節
+            </button>
+        </div>
+
+        <div class="header-group">
+            <button id="btnToggleHighlight" type="button" class="eink-btn">
+                畫線註記
+            </button>
+
+            <button id="btnToggleBookmarks" type="button" class="eink-btn">
+                <img src="bookmark_2.png" class="bookmark-icon bookmark-img" alt="書籤" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+                <svg class="bookmark-icon hidden" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M5 3a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v19l-7-4-7 4V3z"/>
+                </svg>
+                <span>書籤</span>
+            </button>
+
+            <button id="btnToggleSettings" type="button" class="eink-btn">
+                設定
+            </button>
+
+            <!-- 畫線註記選單 (浮動) -->
+            <div id="highlightMenu" class="highlight-menu hidden">
+                <button type="button" class="color-btn" style="background-color:#FFB6C1;" data-color="#FFB6C1" title="螢光粉紅"></button>
+                <button type="button" class="color-btn" style="background-color:#FFFF00;" data-color="#FFFF00" title="螢光黃"></button>
+                <button type="button" class="color-btn" style="background-color:#FFA500;" data-color="#FFA500" title="螢光橘"></button>
+                <button type="button" class="color-btn" style="background-color:#90EE90;" data-color="#90EE90" title="螢光綠"></button>
+                <button type="button" class="color-btn" style="background-color:#ADD8E6;" data-color="#ADD8E6" title="螢光藍"></button>
+                <button type="button" class="color-btn" style="background-color:#DDA0DD;" data-color="#DDA0DD" title="螢光紫"></button>
+                <button id="btnClearHighlight" type="button" class="eink-btn">
+                    取消畫線註記
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主閱讀區與側邊欄容器 -->
+    <div class="app-body">
+
+        <!-- 左側邊欄：目錄 (TOC) -->
+        <aside id="sidebarTOC" class="sidebar sidebar-left hidden">
+            <div class="sidebar-header">
+                <h2 class="sidebar-title">章節目錄</h2>
+                <button id="btnCloseTOC" type="button" class="eink-btn">關閉</button>
+            </div>
+            <ul id="tocList" class="sidebar-list">
+                <li class="muted-text">請先匯入 EPUB 書籍</li>
+            </ul>
+        </aside>
+
+        <!-- 右側邊欄：書籤 -->
+        <aside id="sidebarBookmarks" class="sidebar sidebar-right hidden">
+            <div class="sidebar-header">
+                <h2 class="sidebar-title">書籤清單</h2>
+                <button id="btnCloseBookmarks" type="button" class="eink-btn">關閉</button>
+            </div>
+            <div class="sidebar-action-bar">
+                <button id="btnAddBookmark" type="button" class="eink-btn eink-btn-full">
+                    新增目前頁面為書籤
+                </button>
+            </div>
+            <ul id="bookmarkList" class="sidebar-list">
+                <li class="muted-text">尚無書籤</li>
+            </ul>
+        </aside>
+
+        <!-- 右側邊欄：設定 -->
+        <aside id="sidebarSettings" class="sidebar sidebar-right hidden">
+            <div class="sidebar-header">
+                <h2 class="sidebar-title">閱讀設定</h2>
+                <button id="btnCloseSettings" type="button" class="eink-btn">關閉</button>
+            </div>
+            <div class="sidebar-content">
+
+                <!-- 離線引擎狀態提示 -->
+                <div id="engineStatusBadge" class="offline-badge">
+                    正在檢查離線閱讀引擎...
+                </div>
+
+                <!-- 系統字體設定 -->
+                <div class="setting-group">
+                    <label for="fontSelect" class="setting-label">系統字體</label>
+                    <select id="fontSelect" class="eink-select">
+                        <option value="inherit">預設</option>
+                        <option value="'Noto Serif TC', 'Source Han Serif TC', 'PMingLiU', serif">思源宋體 (Source Han Serif)</option>
+                        <option value="'TW-Sung', '全字庫正宋體', 'Noto Serif TC', serif">全字庫正宋體</option>
+                        <option value="'Swei B2 Sugar', 'Noto Serif TC', serif">獅尾B2加糖宋體</option>
+                        <option value="'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif">思源黑體 (Noto Sans TC)</option>
+                        <option value="'jf-jinxuan', 'Noto Sans TC', sans-serif">金萱體系列</option>
+                        <option value="'LXGW WenKai TC', 'DFKai-SB', 'KaiTi', serif">霞鶩文楷 (LXGW WenKai)</option>
+                        <option value="'Iansui', 'DFKai-SB', serif">芫荽體</option>
+                        <option value="'SetoFont', 'NaikaiFont', 'LXGW WenKai TC', sans-serif">瀨戶字體 / 內海字體</option>
+                        <option value="'jf open huninn', sans-serif">jf open 粉圓字型</option>
+                    </select>
+                </div>
+
+                <!-- 匯入自訂字體 (支援離線永久儲存) -->
+                <div class="setting-group">
+                    <label for="fontInput" class="setting-label">匯入自訂字體 (TTF/TTC，自動離線保存)</label>
+                    <input type="file" id="fontInput" accept=".ttf,.ttc" class="eink-input">
+                </div>
+
+                <!-- 閱讀方向設定 -->
+                <div class="setting-group">
+                    <label for="directionSelect" class="setting-label">閱讀方向</label>
+                    <select id="directionSelect" class="eink-select">
+                        <option value="horizontal">橫排 (左至右)</option>
+                        <option value="vertical">直排 (右至左)</option>
+                    </select>
+                </div>
+
+                <!-- 字體大小 -->
+                <div class="setting-group">
+                    <label for="fontSizeSlider" class="setting-label">
+                        <span>字體大小</span>
+                        <span id="fontSizeDisplay">24px</span>
+                    </label>
+                    <input type="range" id="fontSizeSlider" min="16" max="72" step="2" value="24" class="range-slider">
+                </div>
+
+                <!-- 行距 -->
+                <div class="setting-group">
+                    <label for="lineHeightSlider" class="setting-label">
+                        <span>行距</span>
+                        <span id="lineHeightDisplay">1.8</span>
+                    </label>
+                    <input type="range" id="lineHeightSlider" min="1.0" max="3.0" step="0.1" value="1.8" class="range-slider">
+                </div>
+
+                <!-- 深色模式與進度同步 -->
+                <div class="setting-group">
+                    <button id="btnDarkMode" type="button" class="eink-btn eink-btn-full">
+                        切換深色模式
+                    </button>
+                    <button id="btnSync" type="button" class="eink-btn eink-btn-full">
+                        儲存 / 雲端同步進度
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 閱讀畫面區塊 -->
+        <main class="reader-main">
+            <!-- EPUB 容器 -->
+            <div id="epubViewer" class="hidden"></div>
+
+            <!-- TXT 容器 -->
+            <div id="txtViewer">
+                <div id="txtContent">點選右上"匯入書籍"按鈕 或 "從雲端匯入"按鈕加入書籍~</div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 底部控制列：分頁與狀態 -->
+    <footer class="app-footer">
+        <button id="btnPrevPage" type="button" class="page-btn page-btn-prev">
+            上一頁
+        </button>
+
+        <div class="page-info">
+            <span id="pageInfo">尚未載入書籍</span>
+        </div>
+
+        <button id="btnNextPage" type="button" class="page-btn page-btn-next">
+            下一頁
+        </button>
+    </footer>
+
+    <!-- 雲端匯入操作視窗 -->
+    <div id="cloudImportModal" class="modal-backdrop hidden">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3 id="cloudModalTitle" class="modal-title">從雲端匯入</h3>
+                <button id="btnCloseCloudModal" type="button" class="eink-btn">關閉</button>
+            </div>
+            <p id="cloudModalDesc" class="modal-desc"></p>
+            <div id="cloudUrlSection" class="setting-group">
+                <label for="cloudFileUrl" class="setting-label">貼上公開 EPUB / TXT 下載連結：</label>
+                <input id="cloudFileUrl" type="url" placeholder="https://..." class="eink-input">
+                <button id="btnLoadCloudUrl" type="button" class="eink-btn eink-btn-full">
+                    透過連結載入書籍
+                </button>
+                <div id="cloudModalStatus" class="modal-status hidden"></div>
+            </div>
+            <div class="modal-divider">
+                <a id="cloudPortalLink" href="#" target="_blank" rel="noopener noreferrer" class="eink-btn eink-btn-full">
+                    前往平台書庫 / 雲端網頁
+                </a>
+                <button id="btnPickLocalFromCloud" type="button" class="eink-btn eink-btn-full">
+                    選取已下載的 EPUB / TXT 檔案
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 電子紙高對比狀態提示列 -->
+    <div id="toastMessage" class="toast-box hidden"></div>
+
+    <!-- 主程式邏輯（零頂層網路 import，確保 100% 離線啟動不報錯） -->
+    <script>
+    (function() {
+        'use strict';
+
+        // === DOM 元素參照 ===
+        const fileInput = document.getElementById('fileInput');
+        const btnCloudImport = document.getElementById('btnCloudImport');
+        const cloudImportMenu = document.getElementById('cloudImportMenu');
+        const cloudImportModal = document.getElementById('cloudImportModal');
+        const cloudModalTitle = document.getElementById('cloudModalTitle');
+        const cloudModalDesc = document.getElementById('cloudModalDesc');
+        const cloudUrlSection = document.getElementById('cloudUrlSection');
+        const cloudFileUrl = document.getElementById('cloudFileUrl');
+        const btnLoadCloudUrl = document.getElementById('btnLoadCloudUrl');
+        const cloudModalStatus = document.getElementById('cloudModalStatus');
+        const cloudPortalLink = document.getElementById('cloudPortalLink');
+        const btnPickLocalFromCloud = document.getElementById('btnPickLocalFromCloud');
+        const btnCloseCloudModal = document.getElementById('btnCloseCloudModal');
+
+        const btnToggleTOC = document.getElementById('btnToggleTOC');
+        const sidebarTOC = document.getElementById('sidebarTOC');
+        const btnCloseTOC = document.getElementById('btnCloseTOC');
+        const tocList = document.getElementById('tocList');
+
+        const btnToggleHighlight = document.getElementById('btnToggleHighlight');
+        const highlightMenu = document.getElementById('highlightMenu');
+        const btnClearHighlight = document.getElementById('btnClearHighlight');
+
+        const btnToggleBookmarks = document.getElementById('btnToggleBookmarks');
+        const sidebarBookmarks = document.getElementById('sidebarBookmarks');
+        const btnCloseBookmarks = document.getElementById('btnCloseBookmarks');
+        const btnAddBookmark = document.getElementById('btnAddBookmark');
+        const bookmarkList = document.getElementById('bookmarkList');
+
+        const btnToggleSettings = document.getElementById('btnToggleSettings');
+        const sidebarSettings = document.getElementById('sidebarSettings');
+        const btnCloseSettings = document.getElementById('btnCloseSettings');
+        const engineStatusBadge = document.getElementById('engineStatusBadge');
+
+        const fontSelect = document.getElementById('fontSelect');
+        const fontInput = document.getElementById('fontInput');
+        const directionSelect = document.getElementById('directionSelect');
+        const fontSizeSlider = document.getElementById('fontSizeSlider');
+        const fontSizeDisplay = document.getElementById('fontSizeDisplay');
+        const lineHeightSlider = document.getElementById('lineHeightSlider');
+        const lineHeightDisplay = document.getElementById('lineHeightDisplay');
+        const btnDarkMode = document.getElementById('btnDarkMode');
+        const btnSync = document.getElementById('btnSync');
+
+        const epubViewer = document.getElementById('epubViewer');
+        const txtViewer = document.getElementById('txtViewer');
+        const txtContent = document.getElementById('txtContent');
+
+        const btnPrevPage = document.getElementById('btnPrevPage');
+        const btnNextPage = document.getElementById('btnNextPage');
+        const pageInfo = document.getElementById('pageInfo');
+        const toastMessage = document.getElementById('toastMessage');
+
+        // === 全域狀態 ===
+        const state = {
+            mode: null, // 'txt' | 'epub'
+            fontSize: 24,
+            lineHeight: 1.8,
+            fontFamily: 'inherit',
+            direction: 'horizontal', // 'horizontal' | 'vertical'
+            isDarkMode: false,
+            txtContent: '',
+            currentFile: 'default',
+            txtPage: 0,
+            txtTotalPages: 1,
+            epubCfi: null,
+            bookmarksByBook: {},
+            highlightsByBook: {}
+        };
+
+        // EPUB 執行階段狀態
+        let book = null;
+        let rendition = null;
+        let epubLocations = [];
+        let epubLocationsFailed = false;
+        let currentBookToken = 0;
+        let selectedCfi = null;
+        let epubResizeTimer = null;
+        let isEpubNavigating = false;
+        let epubEngineReady = false;
+        let epubEngineSource = 'loading'; // 'local' | 'cdn' | 'failed'
+
+        // 自訂字體暫存清單
+        const customFonts = []; // [{ familyName, displayName, buffer }]
+
+        // Firebase 選配狀態（僅於有網路且有設定時動態啟用）
+        let firebaseApi = null;
+        let db = null;
+        let currentUser = null;
+        let currentAppId = 'eink-reader-default';
+
+        // === Toast 提示 ===
+        let toastTimer = null;
+        function showToast(msg, duration = 3000) {
+            toastMessage.textContent = msg;
+            toastMessage.classList.remove('hidden');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toastMessage.classList.add('hidden');
+            }, duration);
+        }
+
+        // === 1. 離線優先雙重腳本載入器（優先讀取本機 ./libs/，無則備援 CDN） ===
+        function loadScriptUrl(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.async = false;
+                script.onload = () => resolve(src);
+                script.onerror = () => {
+                    script.remove();
+                    reject(new Error('Failed to load ' + src));
+                };
+                document.head.appendChild(script);
+            });
+        }
+
+        async function loadScriptWithFallback(localPath, cdnUrl) {
+            try {
+                await loadScriptUrl(localPath);
+                return 'local';
+            } catch {
+                if (navigator.onLine) {
+                    await loadScriptUrl(cdnUrl);
+                    return 'cdn';
+                }
+                throw new Error('Offline and local library missing: ' + localPath);
+            }
+        }
+
+        async function initOfflineEpubEngine() {
+            try {
+                const zipSrc = typeof window.JSZip !== 'undefined'
+                    ? 'local'
+                    : await loadScriptWithFallback(
+                        './libs/jszip.min.js',
+                        'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'
+                    );
+
+                const epubSrc = typeof window.ePub !== 'undefined'
+                    ? 'local'
+                    : await loadScriptWithFallback(
+                        './libs/epub.min.js',
+                        'https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js'
+                    );
+
+                epubEngineReady = (typeof window.JSZip !== 'undefined' && typeof window.ePub !== 'undefined');
+                epubEngineSource = (zipSrc === 'local' && epubSrc === 'local') ? 'local' : 'cdn';
+
+                if (epubEngineSource === 'local') {
+                    engineStatusBadge.textContent = '離線狀態：本機 EPUB 引擎已就緒（免 Wi-Fi）';
+                } else {
+                    engineStatusBadge.textContent = '引擎狀態：雲端備援模式（離線請放置 libs 資料夾）';
+                }
+            } catch {
+                epubEngineReady = false;
+                epubEngineSource = 'failed';
+                engineStatusBadge.textContent = '離線提示：TXT 可用，EPUB 需放置 libs 檔案或連線';
+            }
+        }
+
+        // 若有網路，於背景非阻塞載入雲端字體（完全不影響離線啟動）
+        function loadOptionalCloudFonts() {
+            if (!navigator.onLine) return;
+            const style = document.createElement('style');
+            style.id = 'eink-optional-cloud-fonts';
+            style.textContent = `
+                @import url('https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC&family=Noto+Sans+TC:wght@400;700&family=Noto+Serif+TC:wght@400;700&display=swap');
+                @font-face {
+                    font-family: 'Iansui';
+                    src: url('https://cdn.jsdelivr.net/gh/ButTaiwan/iansui@master/Iansui-Regular.ttf') format('truetype');
+                    font-display: swap;
+                }
+                @font-face {
+                    font-family: 'jf open huninn';
+                    src: url('https://cdn.jsdelivr.net/gh/justfont/open-huninn-font/font/jf-openhuninn-1.1/jf-openhuninn-1.1.ttf') format('truetype');
+                    font-display: swap;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // 註冊 PWA Service Worker（僅於 http/https 環境生效，不影響 file:// 與 APK WebView）
+        function registerServiceWorker() {
+            if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.protocol === 'http:')) {
+                navigator.serviceWorker.register('./sw.js').catch(() => {
+                    // 預覽環境或尚未建立 sw.js 時靜默略過
+                });
+            }
+        }
+
+        // === 2. IndexedDB 自訂字體離線永久儲存 ===
+        const FONT_DB_NAME = 'EInkReaderFontsDB';
+        const FONT_STORE_NAME = 'fonts';
+
+        function openFontDB() {
+            return new Promise((resolve, reject) => {
+                if (!window.indexedDB) return reject(new Error('No IndexedDB'));
+                const req = indexedDB.open(FONT_DB_NAME, 1);
+                req.onupgradeneeded = (e) => {
+                    const idb = e.target.result;
+                    if (!idb.objectStoreNames.contains(FONT_STORE_NAME)) {
+                        idb.createObjectStore(FONT_STORE_NAME, { keyPath: 'familyName' });
+                    }
+                };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function saveFontToIndexedDB(fontEntry) {
+            try {
+                const idb = await openFontDB();
+                const tx = idb.transaction(FONT_STORE_NAME, 'readwrite');
+                tx.objectStore(FONT_STORE_NAME).put(fontEntry);
+            } catch {
+                // 忽略部分 WebView 的 IndexedDB 限制
+            }
+        }
+
+        async function restoreSavedFontsFromIndexedDB() {
+            try {
+                const idb = await openFontDB();
+                const tx = idb.transaction(FONT_STORE_NAME, 'readonly');
+                const store = tx.objectStore(FONT_STORE_NAME);
+                const allFonts = await new Promise((resolve, reject) => {
+                    const req = store.getAll();
+                    req.onsuccess = () => resolve(req.result || []);
+                    req.onerror = () => reject(req.error);
+                });
+
+                for (const entry of allFonts) {
+                    if (!entry || !entry.familyName || !entry.buffer) continue;
+                    try {
+                        const face = new FontFace(entry.familyName, entry.buffer.slice(0));
+                        await face.load();
+                        document.fonts.add(face);
+                        customFonts.push(entry);
+
+                        const optionValue = `'${entry.familyName}', sans-serif`;
+                        if (![...fontSelect.options].some(o => o.value === optionValue)) {
+                            const opt = document.createElement('option');
+                            opt.value = optionValue;
+                            opt.textContent = `[自訂] ${entry.displayName || entry.familyName}`;
+                            fontSelect.appendChild(opt);
+                        }
+                    } catch {
+                        // 略過損毀字體
+                    }
+                }
+
+                // 若先前的設定使用到自訂字體，重新同步選單
+                if ([...fontSelect.options].some(o => o.value === state.fontFamily)) {
+                    fontSelect.value = state.fontFamily;
+                    applyStyles();
+                }
+            } catch {
+                // 無本機自訂字體紀錄時靜默略過
+            }
+        }
+
+        // === 3. 本機儲存與選配 Firebase 雲端同步 ===
+        function getLocalStorageKey() {
+            return 'eink_reader_state_v2';
+        }
+
+        function saveLocalSettings() {
+            try {
+                const payload = {
+                    fontSize: state.fontSize,
+                    lineHeight: state.lineHeight,
+                    fontFamily: state.fontFamily,
+                    direction: state.direction,
+                    isDarkMode: state.isDarkMode,
+                    bookmarksByBook: state.bookmarksByBook,
+                    highlightsByBook: state.highlightsByBook
+                };
+                localStorage.setItem(getLocalStorageKey(), JSON.stringify(payload));
+            } catch {
+                // 忽略儲存空間限制
+            }
+        }
+
+        function loadLocalSettings() {
+            try {
+                const raw = localStorage.getItem(getLocalStorageKey());
+                if (!raw) return;
+                applySavedSettingsData(JSON.parse(raw));
+            } catch {
+                // 忽略解析錯誤
+            }
+        }
+
+        function applySavedSettingsData(data) {
+            if (!data) return;
+            if (typeof data.fontSize === 'number') state.fontSize = data.fontSize;
+            if (typeof data.lineHeight === 'number') state.lineHeight = data.lineHeight;
+            if (typeof data.fontFamily === 'string') state.fontFamily = data.fontFamily;
+            if (data.direction === 'horizontal' || data.direction === 'vertical') state.direction = data.direction;
+            if (typeof data.isDarkMode === 'boolean') state.isDarkMode = data.isDarkMode;
+            if (data.bookmarksByBook && typeof data.bookmarksByBook === 'object') {
+                state.bookmarksByBook = data.bookmarksByBook;
+            }
+            if (data.highlightsByBook && typeof data.highlightsByBook === 'object') {
+                state.highlightsByBook = data.highlightsByBook;
+            }
+
+            fontSizeSlider.value = state.fontSize;
+            fontSizeDisplay.textContent = `${state.fontSize}px`;
+            lineHeightSlider.value = state.lineHeight;
+            lineHeightDisplay.textContent = state.lineHeight.toFixed(1);
+            directionSelect.value = state.direction;
+            if ([...fontSelect.options].some(o => o.value === state.fontFamily)) {
+                fontSelect.value = state.fontFamily;
+            }
+
+            applyDarkModeUI();
+            applyStyles();
+            renderBookmarks();
+        }
+
+        async function initOptionalFirebase() {
+            // 永遠先讀取本機設定，確保離線秒開
+            loadLocalSettings();
+
+            if (!navigator.onLine) return;
+            const rawConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
+            if (typeof __app_id !== 'undefined' && __app_id) {
+                currentAppId = __app_id;
+            }
+            if (!rawConfig) return;
+
+            try {
+                const [appMod, authMod, fsMod] = await Promise.all([
+                    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js'),
+                    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js'),
+                    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js')
+                ]);
+
+                const firebaseConfig = typeof rawConfig === 'string' ? JSON.parse(rawConfig) : rawConfig;
+                const app = appMod.initializeApp(firebaseConfig);
+                const auth = authMod.getAuth(app);
+                db = fsMod.getFirestore(app);
+                firebaseApi = fsMod;
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    const cred = await authMod.signInWithCustomToken(auth, __initial_auth_token);
+                    currentUser = cred.user;
+                } else {
+                    const cred = await authMod.signInAnonymously(auth);
+                    currentUser = cred.user;
+                }
+
+                const docRef = firebaseApi.doc(db, 'artifacts', currentAppId, 'users', currentUser.uid, 'settings', 'readerData');
+                const snap = await firebaseApi.getDoc(docRef);
+                if (snap.exists()) {
+                    applySavedSettingsData(snap.data());
+                }
+            } catch {
+                // 離線或未設定雲端時，維持純本機模式
+            }
+        }
+
+        async function syncToCloud() {
+            saveLocalSettings();
+            const bookKey = state.currentFile || 'default';
+            const progressData = {
+                mode: state.mode,
+                txtPage: state.txtPage,
+                epubCfi: state.epubCfi,
+                updatedAt: Date.now()
+            };
+
+            try {
+                localStorage.setItem(`eink_book_${bookKey}`, JSON.stringify(progressData));
+            } catch {
+                // 忽略本機空間不足
+            }
+
+            if (!navigator.onLine || !db || !currentUser || !firebaseApi) {
+                showToast('設定、書籤與閱讀進度已儲存至本機（離線模式）。');
+                return;
+            }
+
+            try {
+                const docRef = firebaseApi.doc(db, 'artifacts', currentAppId, 'users', currentUser.uid, 'settings', 'readerData');
+                await firebaseApi.setDoc(docRef, {
+                    fontSize: state.fontSize,
+                    lineHeight: state.lineHeight,
+                    fontFamily: state.fontFamily,
+                    direction: state.direction,
+                    isDarkMode: state.isDarkMode,
+                    bookmarksByBook: state.bookmarksByBook,
+                    highlightsByBook: state.highlightsByBook,
+                    lastBook: bookKey,
+                    updatedAt: Date.now()
+                }, { merge: true });
+
+                const safeBookId = encodeURIComponent(bookKey).slice(0, 120);
+                const bookDocRef = firebaseApi.doc(db, 'artifacts', currentAppId, 'users', currentUser.uid, 'books', safeBookId);
+                await firebaseApi.setDoc(bookDocRef, progressData, { merge: true });
+
+                showToast('進度、書籤與設定已同步至本機與雲端！');
+            } catch {
+                showToast('雲端連線失敗，已妥善儲存於本機。');
+            }
+        }
+
+        async function getSavedBookProgress(bookName) {
+            if (navigator.onLine && db && currentUser && firebaseApi) {
+                try {
+                    const safeBookId = encodeURIComponent(bookName).slice(0, 120);
+                    const bookDocRef = firebaseApi.doc(db, 'artifacts', currentAppId, 'users', currentUser.uid, 'books', safeBookId);
+                    const snap = await firebaseApi.getDoc(bookDocRef);
+                    if (snap.exists()) return snap.data();
+                } catch {
+                    // 改讀本機
+                }
+            }
+            try {
+                const raw = localStorage.getItem(`eink_book_${bookName}`);
+                return raw ? JSON.parse(raw) : null;
+            } catch {
+                return null;
+            }
+        }
+
+        // === 側邊欄與浮動選單開關 ===
+        function closeAllPanels(exceptId = null) {
+            [sidebarTOC, sidebarBookmarks, sidebarSettings, highlightMenu, cloudImportMenu].forEach(panel => {
+                if (panel && panel.id !== exceptId) {
+                    panel.classList.add('hidden');
+                }
+            });
+        }
+
+        btnToggleTOC.addEventListener('click', () => {
+            const willOpen = sidebarTOC.classList.contains('hidden');
+            closeAllPanels('sidebarTOC');
+            sidebarTOC.classList.toggle('hidden', !willOpen);
+        });
+        btnCloseTOC.addEventListener('click', () => sidebarTOC.classList.add('hidden'));
+
+        btnToggleBookmarks.addEventListener('click', () => {
+            const willOpen = sidebarBookmarks.classList.contains('hidden');
+            closeAllPanels('sidebarBookmarks');
+            sidebarBookmarks.classList.toggle('hidden', !willOpen);
+            if (willOpen) renderBookmarks();
+        });
+        btnCloseBookmarks.addEventListener('click', () => sidebarBookmarks.classList.add('hidden'));
+
+        btnToggleSettings.addEventListener('click', () => {
+            const willOpen = sidebarSettings.classList.contains('hidden');
+            closeAllPanels('sidebarSettings');
+            sidebarSettings.classList.toggle('hidden', !willOpen);
+        });
+        btnCloseSettings.addEventListener('click', () => sidebarSettings.classList.add('hidden'));
+
+        btnToggleHighlight.addEventListener('click', () => {
+            const willOpen = highlightMenu.classList.contains('hidden');
+            closeAllPanels('highlightMenu');
+            highlightMenu.classList.toggle('hidden', !willOpen);
+        });
+
+        btnCloudImport.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const willOpen = cloudImportMenu.classList.contains('hidden');
+            closeAllPanels('cloudImportMenu');
+            cloudImportMenu.classList.toggle('hidden', !willOpen);
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!cloudImportMenu.contains(e.target) && e.target !== btnCloudImport) {
+                cloudImportMenu.classList.add('hidden');
+            }
+        });
+
+        // === 雲端匯入功能 ===
+        const CLOUD_PROVIDERS = {
+            google: {
+                title: 'Google雲端 匯入',
+                desc: '請將 Google 雲端上的 EPUB 或 TXT 檔案設為「知道連結的使用者皆可檢視」，貼上分享連結即可載入；或下載後直接選取檔案。',
+                url: 'https://drive.google.com/',
+                supportsDirectUrl: true
+            },
+            mega: {
+                title: 'Mega雲端 匯入',
+                desc: 'MEGA 檔案採用端對端加密，建議先從 MEGA 下載 EPUB/TXT 至裝置後，再點擊下方按鈕匯入。',
+                url: 'https://mega.nz/',
+                supportsDirectUrl: true
+            },
+            readmoo: {
+                title: 'Readmoo 讀墨 匯入',
+                desc: '請前往 Readmoo 讀墨書櫃下載無 DRM 保護之 EPUB 檔案（或個人匯入文件），再透過下方按鈕選取檔案閱讀。',
+                url: 'https://readmoo.com/',
+                supportsDirectUrl: false
+            },
+            kobo: {
+                title: 'Kobo 匯入',
+                desc: '請前往 Kobo 書庫下載無 DRM 保護的 EPUB 檔案至本機後，再點擊下方按鈕匯入本閱讀器。',
+                url: 'https://www.kobo.com/',
+                supportsDirectUrl: false
+            },
+            kindle: {
+                title: 'Kindle 匯入',
+                desc: '請將您的個人文件轉換為 EPUB 或 TXT 格式並下載至本機後，再點擊下方按鈕開啟。',
+                url: 'https://read.amazon.com/',
+                supportsDirectUrl: false
+            },
+            hyread: {
+                title: 'HyRead 個人書房 匯入',
+                desc: '請前往 HyRead 個人書房下載支援匯出的無加密 EPUB / TXT 檔案後，再透過下方按鈕載入。',
+                url: 'https://ebook.hyread.com.tw/',
+                supportsDirectUrl: false
+            },
+            boox: {
+                title: '文石雲端 (BOOX) 匯入',
+                desc: '可貼上公開的 EPUB / TXT 下載連結，或前往文石雲端（push.boox.com）下載書籍後由本機選取匯入。',
+                url: 'https://push.boox.com/',
+                supportsDirectUrl: true
+            }
+        };
+
+        function setCloudStatus(htmlMsg, isVisible = true) {
+            if (!isVisible) {
+                cloudModalStatus.classList.add('hidden');
+                cloudModalStatus.innerHTML = '';
+                return;
+            }
+            cloudModalStatus.innerHTML = htmlMsg;
+            cloudModalStatus.classList.remove('hidden');
+        }
+
+        document.querySelectorAll('.cloud-source-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const info = CLOUD_PROVIDERS[btn.dataset.provider];
+                if (!info) return;
+
+                cloudImportMenu.classList.add('hidden');
+                cloudModalTitle.textContent = info.title;
+                cloudModalDesc.textContent = info.desc;
+                cloudPortalLink.href = info.url;
+                cloudFileUrl.value = '';
+                setCloudStatus('', false);
+
+                if (info.supportsDirectUrl) {
+                    cloudUrlSection.classList.remove('hidden');
+                } else {
+                    cloudUrlSection.classList.add('hidden');
+                }
+
+                cloudImportModal.classList.remove('hidden');
+            });
+        });
+
+        btnCloseCloudModal.addEventListener('click', () => {
+            cloudImportModal.classList.add('hidden');
+        });
+
+        btnPickLocalFromCloud.addEventListener('click', () => {
+            cloudImportModal.classList.add('hidden');
+            fileInput.click();
+        });
+
+        function normalizeCloudUrl(rawUrl) {
+            const trimmed = rawUrl.trim();
+            const gdriveMatch = trimmed.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+            if (gdriveMatch) {
+                return `https://drive.google.com/uc?export=download&id=${gdriveMatch[1]}`;
+            }
+            const gdriveIdMatch = trimmed.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/);
+            if (gdriveIdMatch) {
+                return `https://drive.google.com/uc?export=download&id=${gdriveIdMatch[1]}`;
+            }
+            if (trimmed.includes('dropbox.com')) {
+                return trimmed.replace(/[?&]dl=0/, '?dl=1');
+            }
+            return trimmed;
+        }
+
+        function isZipOrEpubBuffer(buffer) {
+            if (!buffer || buffer.byteLength < 4) return false;
+            const bytes = new Uint8Array(buffer, 0, 4);
+            return bytes[0] === 0x50 && bytes[1] === 0x4B;
+        }
+
+        function looksLikeHtmlPage(buffer) {
+            try {
+                const sample = new TextDecoder('utf-8').decode(buffer.slice(0, 512)).trim().toLowerCase();
+                return sample.startsWith('<!doctype html') || sample.startsWith('<html') || sample.includes('<head>');
+            } catch {
+                return false;
+            }
+        }
+
+        async function fetchCloudArrayBuffer(targetUrl) {
+            const candidates = [
+                targetUrl,
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+                `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`
+            ];
+
+            for (const url of candidates) {
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) continue;
+                    const buffer = await res.arrayBuffer();
+                    if (buffer && buffer.byteLength > 0 && !looksLikeHtmlPage(buffer)) {
+                        return buffer;
+                    }
+                } catch {
+                    // 嘗試下一個備援
+                }
+            }
+            return null;
+        }
+
+        btnLoadCloudUrl.addEventListener('click', async () => {
+            if (!navigator.onLine) {
+                setCloudStatus('目前為離線狀態，請開啟 Wi-Fi 或改點下方「選取已下載的 EPUB / TXT 檔案」。');
+                return;
+            }
+
+            const rawUrl = cloudFileUrl.value.trim();
+            if (!rawUrl) {
+                setCloudStatus('請先貼上有效的檔案連結。');
+                return;
+            }
+
+            if (rawUrl.includes('mega.nz')) {
+                setCloudStatus(
+                    `MEGA 連結因端對端加密無法直接由網頁讀取，請先 <a href="${rawUrl}" target="_blank" rel="noopener noreferrer">點此在新分頁下載檔案</a>，再點擊下方「選取已下載的 EPUB / TXT 檔案」。`
+                );
+                return;
+            }
+
+            const downloadUrl = normalizeCloudUrl(rawUrl);
+            setCloudStatus('正在連線讀取雲端書籍，請稍候...');
+            btnLoadCloudUrl.disabled = true;
+
+            try {
+                const buffer = await fetchCloudArrayBuffer(downloadUrl);
+                if (!buffer) {
+                    setCloudStatus(
+                        `無法直接跨網域下載此檔案（可能受 CORS 或權限限制）。請先 <a href="${downloadUrl}" target="_blank" rel="noopener noreferrer">點此在新分頁下載檔案</a>，再使用下方按鈕匯入。`
+                    );
+                    return;
+                }
+
+                let fileName = '雲端書籍';
+                try {
+                    const pathname = new URL(rawUrl).pathname;
+                    const lastSeg = decodeURIComponent(pathname.split('/').pop() || '');
+                    if (lastSeg && lastSeg.length < 100 && lastSeg !== 'view') {
+                        fileName = lastSeg;
+                    }
+                } catch {
+                    // 維持預設檔名
+                }
+
+                if (isZipOrEpubBuffer(buffer) || rawUrl.toLowerCase().includes('.epub')) {
+                    if (!fileName.toLowerCase().endsWith('.epub')) fileName += '.epub';
+                    cloudImportModal.classList.add('hidden');
+                    await loadEpubFromArrayBuffer(buffer, fileName);
+                } else {
+                    const text = new TextDecoder('utf-8').decode(buffer);
+                    if (!fileName.toLowerCase().endsWith('.txt')) fileName += '.txt';
+                    cloudImportModal.classList.add('hidden');
+                    await loadTxtContent(text, fileName);
+                }
+            } finally {
+                btnLoadCloudUrl.disabled = false;
+            }
+        });
+
+        // === 安全清理 EPUB 實例 ===
+        function cleanupEpub() {
+            currentBookToken++;
+            clearTimeout(epubResizeTimer);
+            if (rendition) {
+                try { rendition.destroy(); } catch {}
+                rendition = null;
+            }
+            if (book) {
+                try { book.destroy(); } catch {}
+                book = null;
+            }
+            epubLocations = [];
+            epubLocationsFailed = false;
+            selectedCfi = null;
+            isEpubNavigating = false;
+            epubViewer.innerHTML = '';
+        }
+
+        // === 本地檔案匯入 ===
+        fileInput.addEventListener('change', async (event) => {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+
+            const lowerName = file.name.toLowerCase();
+            if (lowerName.endsWith('.epub')) {
+                await loadEpub(file);
+            } else if (lowerName.endsWith('.txt')) {
+                const text = await file.text();
+                await loadTxtContent(text, file.name);
+            } else {
+                showToast('僅支援 .epub 與 .txt 格式檔案。');
+            }
+
+            fileInput.value = '';
+        });
+
+        // === TXT 引擎（100% 離線可用） ===
+        async function loadTxtContent(text, fileName) {
+            cleanupEpub();
+            state.mode = 'txt';
+            state.currentFile = fileName;
+            state.txtContent = text;
+            state.txtPage = 0;
+
+            epubViewer.classList.add('hidden');
+            txtViewer.classList.remove('hidden');
+
+            txtContent.textContent = text;
+            tocList.innerHTML = '<li class="muted-text">TXT 純文字檔無章節目錄</li>';
+
+            applyStyles();
+
+            const saved = await getSavedBookProgress(fileName);
+            if (saved && typeof saved.txtPage === 'number' && saved.txtPage >= 0) {
+                state.txtPage = saved.txtPage;
+            }
+
+            requestAnimationFrame(() => {
+                recalculateTxtPagination(true);
+            });
+
+            renderBookmarks();
+            showToast(`已載入：${fileName}`);
+        }
+
+        function recalculateTxtPagination(keepCurrentPage = true) {
+            if (state.mode !== 'txt') return;
+
+            const viewerWidth = Math.floor(txtViewer.clientWidth) || window.innerWidth;
+            if (state.direction === 'vertical') {
+                txtViewer.classList.add('vertical-mode');
+                txtContent.style.columnWidth = 'auto';
+            } else {
+                txtViewer.classList.remove('vertical-mode');
+                txtContent.style.columnWidth = `${viewerWidth}px`;
+            }
+
+            const totalScrollWidth = txtViewer.scrollWidth;
+            const totalPages = Math.max(1, Math.ceil(totalScrollWidth / viewerWidth));
+            state.txtTotalPages = totalPages;
+
+            if (!keepCurrentPage) {
+                state.txtPage = 0;
+            } else if (state.txtPage >= totalPages) {
+                state.txtPage = totalPages - 1;
+            }
+
+            goToTxtPage(state.txtPage);
+        }
+
+        function goToTxtPage(pageIndex) {
+            if (state.mode !== 'txt') return;
+            const viewerWidth = Math.floor(txtViewer.clientWidth) || window.innerWidth;
+            const clamped = Math.max(0, Math.min(pageIndex, state.txtTotalPages - 1));
+            state.txtPage = clamped;
+
+            if (state.direction === 'vertical') {
+                txtViewer.scrollLeft = -(clamped * viewerWidth);
+            } else {
+                txtViewer.scrollLeft = clamped * viewerWidth;
+            }
+
+            pageInfo.textContent = `目前頁數 ${clamped + 1} / 總頁數 ${state.txtTotalPages}`;
+        }
+
+        // === EPUB 引擎 ===
+        async function loadEpub(file) {
+            try {
+                const buffer = await file.arrayBuffer();
+                await loadEpubFromArrayBuffer(buffer, file.name);
+            } catch {
+                showToast('無法讀取此 EPUB 檔案。');
+            }
+        }
+
+        async function loadEpubFromArrayBuffer(buffer, fileName) {
+            if (!epubEngineReady || typeof window.ePub === 'undefined') {
+                showToast('找不到離線 EPUB 引擎，請確認資料夾內已放入 libs/jszip.min.js 與 libs/epub.min.js。', 5000);
+                return;
+            }
+
+            cleanupEpub();
+            const token = currentBookToken;
+
+            state.mode = 'epub';
+            state.currentFile = fileName;
+            state.epubCfi = null;
+
+            txtViewer.classList.add('hidden');
+            epubViewer.classList.remove('hidden');
+            pageInfo.textContent = '載入 EPUB 中...';
+
+            try {
+                book = window.ePub(buffer);
+                await book.ready;
+                if (token !== currentBookToken) return;
+
+                if (book.package && book.package.metadata) {
+                    book.package.metadata.direction = state.direction === 'vertical' ? 'rtl' : 'ltr';
+                }
+
+                book.loaded.navigation.then(nav => {
+                    if (token !== currentBookToken) return;
+                    renderTOC(nav && nav.toc ? nav.toc : []);
+                }).catch(() => {
+                    if (token !== currentBookToken) return;
+                    tocList.innerHTML = '<li class="muted-text">此書未提供目錄</li>';
+                });
+
+                const saved = await getSavedBookProgress(fileName);
+                const startCfi = saved && saved.epubCfi ? saved.epubCfi : null;
+
+                initEpubRendition(startCfi);
+                renderBookmarks();
+                showToast(`已載入：${fileName}`);
+            } catch {
+                if (token !== currentBookToken) return;
+                showToast('EPUB 解析失敗，請確認檔案未受損或未受 DRM 保護。');
+                pageInfo.textContent = '載入失敗';
+            }
+        }
+
+        function initEpubRendition(startCfi = null) {
+            if (!book) return;
+            const token = currentBookToken;
+
+            if (!book.spine || !Array.isArray(book.spine.spineItems) || book.spine.spineItems.length === 0) {
+                showToast('此 EPUB 檔案缺少有效章節，無法開啟。');
+                return;
+            }
+
+            if (rendition) {
+                try { rendition.destroy(); } catch {}
+                rendition = null;
+            }
+            epubViewer.innerHTML = '';
+
+            const targetDirection = state.direction === 'vertical' ? 'rtl' : 'ltr';
+            if (book.package && book.package.metadata) {
+                book.package.metadata.direction = targetDirection;
+            }
+
+            const viewerWidth = Math.floor(epubViewer.clientWidth) || window.innerWidth;
+            const viewerHeight = Math.floor(epubViewer.clientHeight) || (window.innerHeight - 130);
+
+            rendition = book.renderTo('epubViewer', {
+                width: viewerWidth,
+                height: viewerHeight,
+                spread: 'none',
+                manager: 'default',
+                flow: 'paginated',
+                defaultDirection: targetDirection
+            });
+
+            rendition.hooks.content.register((contents) => {
+                return injectFontsAndStylesToEpubContent(contents);
+            });
+
+            rendition.on('relocated', (location) => {
+                if (token !== currentBookToken) return;
+                if (location && location.start && location.start.cfi) {
+                    state.epubCfi = location.start.cfi;
+                }
+                updateEpubPagination(location);
+            });
+
+            rendition.on('selected', (cfiRange) => {
+                selectedCfi = cfiRange;
+            });
+
+            const displayPromise = startCfi
+                ? rendition.display(startCfi).catch(() => rendition.display())
+                : rendition.display();
+
+            displayPromise.then(() => {
+                if (token !== currentBookToken || !book || !rendition) return;
+                restoreEpubHighlights();
+                updateEpubPagination();
+
+                if (epubLocations.length === 0 && !epubLocationsFailed && book.locations && typeof book.locations.generate === 'function') {
+                    Promise.resolve()
+                        .then(() => book.locations.generate(800))
+                        .then(locations => {
+                            if (token !== currentBookToken || !book) return;
+                            if (Array.isArray(locations) && locations.length > 0) {
+                                epubLocations = locations;
+                                updateEpubPagination();
+                            }
+                        })
+                        .catch(() => {
+                            if (token !== currentBookToken) return;
+                            epubLocationsFailed = true;
+                            epubLocations = [];
+                            updateEpubPagination();
+                        });
+                }
+            }).catch(() => {
+                if (token !== currentBookToken) return;
+                showToast('EPUB 檔案無法正常顯示，請確認檔案是否完整或未受 DRM 加密。');
+            });
+        }
+
+        function updateEpubPagination(location) {
+            if (!book || !rendition) return;
+            let currentLocation = location;
+            if (!currentLocation) {
+                try {
+                    currentLocation = rendition.currentLocation();
+                } catch {
+                    return;
+                }
+            }
+            if (!currentLocation || !currentLocation.start) return;
+
+            const displayed = currentLocation.start.displayed;
+            let overallText = '';
+
+            if (epubLocations.length > 0 && currentLocation.start.cfi) {
+                try {
+                    let percent = book.locations.percentageFromCfi(currentLocation.start.cfi);
+                    if (typeof percent === 'number' && !isNaN(percent)) {
+                        percent = Math.min(1, Math.max(0, percent));
+                        overallText = `（全書 ${Math.round(percent * 100)}%）`;
+                    }
+                } catch {}
+            } else if (book.spine && Array.isArray(book.spine.spineItems) && book.spine.spineItems.length > 0 && typeof currentLocation.start.index === 'number') {
+                const totalChapters = book.spine.spineItems.length;
+                const chapterRatio = (displayed && displayed.page && displayed.total)
+                    ? (displayed.page / displayed.total)
+                    : 0;
+                const estPercent = Math.min(1, Math.max(0, (currentLocation.start.index + chapterRatio) / totalChapters));
+                overallText = `（全書 ${Math.round(estPercent * 100)}%）`;
+            }
+
+            if (displayed && displayed.page && displayed.total) {
+                pageInfo.textContent = `目前頁數 ${displayed.page} / 總頁數 ${displayed.total}${overallText}`;
+            } else if (overallText) {
+                pageInfo.textContent = `閱讀中${overallText}`;
+            }
+        }
+
+        function scheduleEpubResize() {
+            if (state.mode !== 'epub' || !rendition) return;
+            clearTimeout(epubResizeTimer);
+            epubResizeTimer = setTimeout(() => {
+                if (state.mode !== 'epub' || !rendition) return;
+                const w = Math.floor(epubViewer.clientWidth) || window.innerWidth;
+                const h = Math.floor(epubViewer.clientHeight) || (window.innerHeight - 130);
+                try {
+                    rendition.resize(w, h);
+                    updateEpubPagination();
+                } catch {}
+            }, 120);
+        }
+
+        // === 目錄 (TOC) 遞迴渲染 ===
+        function renderTOC(items) {
+            tocList.innerHTML = '';
+            if (!items || items.length === 0) {
+                tocList.innerHTML = '<li class="muted-text">此書未提供目錄</li>';
+                return;
+            }
+
+            function appendItems(list, depth = 0) {
+                list.forEach(item => {
+                    const li = document.createElement('li');
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'toc-item-btn';
+                    btn.style.paddingLeft = `${8 + depth * 16}px`;
+                    btn.textContent = (item.label || '未命名章節').trim();
+
+                    btn.addEventListener('click', () => {
+                        if (!rendition || !item.href) return;
+                        rendition.display(item.href).then(() => {
+                            updateEpubPagination();
+                            sidebarTOC.classList.add('hidden');
+                        }).catch(() => {
+                            const baseHref = item.href.split('#')[0];
+                            rendition.display(baseHref).then(() => {
+                                updateEpubPagination();
+                                sidebarTOC.classList.add('hidden');
+                            }).catch(() => {
+                                showToast('無法跳轉至此章節。');
+                            });
+                        });
+                    });
+
+                    li.appendChild(btn);
+                    tocList.appendChild(li);
+
+                    if (item.subitems && item.subitems.length > 0) {
+                        appendItems(item.subitems, depth + 1);
+                    }
+                });
+            }
+
+            appendItems(items, 0);
+        }
+
+        // === 樣式與字體同步引擎 ===
+        async function injectFontsAndStylesToEpubContent(contents) {
+            if (!contents || !contents.document) return;
+            const docObj = contents.document;
+            const head = docObj.head || docObj.getElementsByTagName('head')[0];
+
+            // 1. 僅於有網路時載入雲端字體（離線不發出無效請求）
+            if (navigator.onLine && head && !docObj.getElementById('eink-cloud-fonts')) {
+                const fontStyle = docObj.createElement('style');
+                fontStyle.id = 'eink-cloud-fonts';
+                fontStyle.textContent = `
+                    @import url('https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC&family=Noto+Sans+TC:wght@400;700&family=Noto+Serif+TC:wght@400;700&display=swap');
+                    @font-face {
+                        font-family: 'Iansui';
+                        src: url('https://cdn.jsdelivr.net/gh/ButTaiwan/iansui@master/Iansui-Regular.ttf') format('truetype');
+                    }
+                    @font-face {
+                        font-family: 'jf open huninn';
+                        src: url('https://cdn.jsdelivr.net/gh/justfont/open-huninn-font/font/jf-openhuninn-1.1/jf-openhuninn-1.1.ttf') format('truetype');
+                    }
+                `;
+                head.appendChild(fontStyle);
+            }
+
+            // 2. 注入本機自訂字體（100% 離線跨 iframe 生效）
+            if (contents.window && contents.window.FontFace && docObj.fonts && customFonts.length > 0) {
+                for (const fontEntry of customFonts) {
+                    const alreadyLoaded = [...docObj.fonts].some(f => f.family.replace(/['"]/g, '') === fontEntry.familyName);
+                    if (!alreadyLoaded) {
+                        try {
+                            const clonedBuffer = fontEntry.buffer.slice(0);
+                            const face = new contents.window.FontFace(fontEntry.familyName, clonedBuffer);
+                            await face.load();
+                            docObj.fonts.add(face);
+                        } catch {}
+                    }
+                }
+            }
+
+            // 3. 強制套用字體、大小、行距、深淺色與直橫排
+            const bgColor = state.isDarkMode ? '#000000' : '#ffffff';
+            const textColor = state.isDarkMode ? '#ffffff' : '#000000';
+            const writingMode = state.direction === 'vertical' ? 'vertical-rl' : 'horizontal-tb';
+            const fontFamilyRule = state.fontFamily && state.fontFamily !== 'inherit'
+                ? `font-family: ${state.fontFamily} !important;`
+                : '';
+
+            let overrideStyle = docObj.getElementById('eink-epub-override');
+            if (!overrideStyle && head) {
+                overrideStyle = docObj.createElement('style');
+                overrideStyle.id = 'eink-epub-override';
+                head.appendChild(overrideStyle);
+            }
+            if (overrideStyle) {
+                overrideStyle.textContent = `
+                    html, body {
+                        background-color: ${bgColor} !important;
+                        color: ${textColor} !important;
+                        writing-mode: ${writingMode} !important;
+                        -webkit-writing-mode: ${writingMode} !important;
+                        ${fontFamilyRule}
+                        font-size: ${state.fontSize}px !important;
+                        line-height: ${state.lineHeight} !important;
+                    }
+                    p, div, span, li, blockquote, h1, h2, h3, h4, h5, h6, a {
+                        color: ${textColor} !important;
+                        background-color: transparent !important;
+                        ${fontFamilyRule}
+                        line-height: ${state.lineHeight} !important;
+                    }
+                    p, div, span, li, blockquote {
+                        font-size: ${state.fontSize}px !important;
+                    }
+                `;
+            }
+        }
+
+        function applyDarkModeUI() {
+            const htmlEl = document.documentElement;
+            if (state.isDarkMode) {
+                htmlEl.classList.add('dark');
+                htmlEl.classList.remove('light');
+            } else {
+                htmlEl.classList.remove('dark');
+                htmlEl.classList.add('light');
+            }
+        }
+
+        function applyStyles() {
+            txtContent.style.fontSize = `${state.fontSize}px`;
+            txtContent.style.lineHeight = `${state.lineHeight}`;
+            txtContent.style.fontFamily = state.fontFamily;
+            txtContent.style.color = state.isDarkMode ? '#ffffff' : '#000000';
+            txtContent.style.backgroundColor = state.isDarkMode ? '#000000' : '#ffffff';
+
+            if (state.mode === 'txt') {
+                requestAnimationFrame(() => recalculateTxtPagination(true));
+            }
+
+            if (state.mode === 'epub' && rendition) {
+                const contentsList = rendition.getContents();
+                if (Array.isArray(contentsList)) {
+                    Promise.all(contentsList.map(c => injectFontsAndStylesToEpubContent(c)))
+                        .then(() => scheduleEpubResize())
+                        .catch(() => {});
+                }
+            }
+        }
+
+        // === 設定事件 ===
+        fontSelect.addEventListener('change', (e) => {
+            state.fontFamily = e.target.value;
+            applyStyles();
+            saveLocalSettings();
+        });
+
+        fontInput.addEventListener('change', async (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+
+            const baseName = file.name.replace(/\.(ttf|ttc)$/i, '');
+            const uniqueFamily = `CustomFont_${Date.now()}`;
+
+            try {
+                const buffer = await file.arrayBuffer();
+                const face = new FontFace(uniqueFamily, buffer.slice(0));
+                await face.load();
+                document.fonts.add(face);
+
+                const entry = { familyName: uniqueFamily, displayName: baseName, buffer };
+                customFonts.push(entry);
+                await saveFontToIndexedDB(entry);
+
+                const option = document.createElement('option');
+                option.value = `'${uniqueFamily}', sans-serif`;
+                option.textContent = `[自訂] ${baseName}`;
+                fontSelect.appendChild(option);
+                fontSelect.value = option.value;
+
+                state.fontFamily = option.value;
+                applyStyles();
+                saveLocalSettings();
+                showToast(`已匯入並離線保存字體：${baseName}`);
+            } catch {
+                showToast('字體載入失敗（部分系統不支援 .ttc 合集字體，建議改用 .ttf 檔案）。');
+            }
+
+            fontInput.value = '';
+        });
+
+        directionSelect.addEventListener('change', (e) => {
+            state.direction = e.target.value;
+            saveLocalSettings();
+
+            if (state.mode === 'epub' && book) {
+                initEpubRendition(state.epubCfi);
+            } else {
+                applyStyles();
+            }
+        });
+
+        fontSizeSlider.addEventListener('input', (e) => {
+            state.fontSize = parseInt(e.target.value, 10);
+            fontSizeDisplay.textContent = `${state.fontSize}px`;
+            applyStyles();
+            saveLocalSettings();
+        });
+
+        lineHeightSlider.addEventListener('input', (e) => {
+            state.lineHeight = parseFloat(e.target.value);
+            lineHeightDisplay.textContent = state.lineHeight.toFixed(1);
+            applyStyles();
+            saveLocalSettings();
+        });
+
+        btnDarkMode.addEventListener('click', () => {
+            state.isDarkMode = !state.isDarkMode;
+            applyDarkModeUI();
+            applyStyles();
+            saveLocalSettings();
+        });
+
+        btnSync.addEventListener('click', () => {
+            syncToCloud();
+        });
+
+        // === 翻頁事件 ===
+        function goPrevPage() {
+            if (state.mode === 'txt') {
+                goToTxtPage(state.txtPage - 1);
+            } else if (state.mode === 'epub' && rendition && !isEpubNavigating) {
+                isEpubNavigating = true;
+                rendition.prev().catch(() => {}).finally(() => { isEpubNavigating = false; });
+            }
+        }
+
+        function goNextPage() {
+            if (state.mode === 'txt') {
+                goToTxtPage(state.txtPage + 1);
+            } else if (state.mode === 'epub' && rendition && !isEpubNavigating) {
+                isEpubNavigating = true;
+                rendition.next().catch(() => {}).finally(() => { isEpubNavigating = false; });
+            }
+        }
+
+        btnPrevPage.addEventListener('click', goPrevPage);
+        btnNextPage.addEventListener('click', goNextPage);
+
+        document.addEventListener('keydown', (e) => {
+            if (e.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+            if (e.key === 'ArrowLeft') {
+                if (state.direction === 'vertical') goNextPage();
+                else goPrevPage();
+            } else if (e.key === 'ArrowRight') {
+                if (state.direction === 'vertical') goPrevPage();
+                else goNextPage();
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            if (state.mode === 'txt') recalculateTxtPagination(true);
+            else if (state.mode === 'epub') scheduleEpubResize();
+        });
+
+        // === 畫線註記與取消畫線 ===
+        function getBookHighlights() {
+            const key = state.currentFile || 'default';
+            if (!state.highlightsByBook[key]) state.highlightsByBook[key] = [];
+            return state.highlightsByBook[key];
+        }
+
+        function restoreEpubHighlights() {
+            if (state.mode !== 'epub' || !rendition) return;
+            getBookHighlights().forEach(item => {
+                try {
+                    rendition.annotations.highlight(
+                        item.cfi,
+                        {},
+                        () => { selectedCfi = item.cfi; },
+                        'eink-hl',
+                        { fill: item.color, 'fill-opacity': '0.45' }
+                    );
+                } catch {}
+            });
+        }
+
+        function applyHighlight(color) {
+            if (state.mode === 'epub' && rendition) {
+                if (!selectedCfi) {
+                    showToast('請先在內文中反白選取文字，再選擇螢光筆顏色。');
+                    return;
+                }
+                try {
+                    const cfi = selectedCfi;
+                    rendition.annotations.remove(cfi, 'highlight');
+                    rendition.annotations.highlight(
+                        cfi,
+                        {},
+                        () => { selectedCfi = cfi; },
+                        'eink-hl',
+                        { fill: color, 'fill-opacity': '0.45' }
+                    );
+                    const list = getBookHighlights().filter(h => h.cfi !== cfi);
+                    list.push({ cfi, color });
+                    state.highlightsByBook[state.currentFile] = list;
+                    saveLocalSettings();
+                    highlightMenu.classList.add('hidden');
+                    showToast('已加入畫線註記。');
+                } catch {
+                    showToast('畫線失敗，請重新選取文字。');
+                }
+                return;
+            }
+
+            const sel = window.getSelection();
+            if (!sel || sel.isCollapsed || !txtContent.contains(sel.anchorNode)) {
+                showToast('請先在內文中反白選取文字，再選擇螢光筆顏色。');
+                return;
+            }
+
+            try {
+                const range = sel.getRangeAt(0);
+                const mark = document.createElement('mark');
+                mark.className = 'highlight-bg';
+                mark.style.backgroundColor = color;
+                const fragment = range.extractContents();
+                mark.appendChild(fragment);
+                range.insertNode(mark);
+                sel.removeAllRanges();
+                highlightMenu.classList.add('hidden');
+                showToast('已加入畫線註記。');
+            } catch {
+                showToast('無法跨區段畫線，請選取同一段落內的文字。');
+            }
+        }
+
+        function clearHighlight() {
+            if (state.mode === 'epub' && rendition) {
+                const list = getBookHighlights();
+                const targetCfi = selectedCfi || (list.length > 0 ? list[list.length - 1].cfi : null);
+                if (!targetCfi) {
+                    showToast('請先點擊或選取要取消的畫線區域。');
+                    return;
+                }
+                try {
+                    rendition.annotations.remove(targetCfi, 'highlight');
+                    state.highlightsByBook[state.currentFile] = list.filter(h => h.cfi !== targetCfi);
+                    selectedCfi = null;
+                    saveLocalSettings();
+                    highlightMenu.classList.add('hidden');
+                    showToast('已取消畫線註記。');
+                } catch {
+                    showToast('取消畫線失敗，請重新選取。');
+                }
+                return;
+            }
+
+            const sel = window.getSelection();
+            let removed = false;
+            if (sel && !sel.isCollapsed) {
+                const range = sel.getRangeAt(0);
+                txtContent.querySelectorAll('mark.highlight-bg').forEach(mark => {
+                    if (range.intersectsNode(mark)) {
+                        const parent = mark.parentNode;
+                        while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+                        parent.removeChild(mark);
+                        removed = true;
+                    }
+                });
+                sel.removeAllRanges();
+            } else if (sel && sel.anchorNode) {
+                const parentMark = sel.anchorNode.nodeType === 1
+                    ? sel.anchorNode.closest('mark.highlight-bg')
+                    : (sel.anchorNode.parentElement ? sel.anchorNode.parentElement.closest('mark.highlight-bg') : null);
+                if (parentMark) {
+                    const parent = parentMark.parentNode;
+                    while (parentMark.firstChild) parent.insertBefore(parentMark.firstChild, parentMark);
+                    parent.removeChild(parentMark);
+                    removed = true;
+                }
+            }
+
+            highlightMenu.classList.add('hidden');
+            showToast(removed ? '已取消畫線註記。' : '請先選取或點擊已畫線的文字區域。');
+        }
+
+        document.querySelectorAll('.color-btn').forEach(btn => {
+            btn.addEventListener('click', () => applyHighlight(btn.dataset.color));
+        });
+        btnClearHighlight.addEventListener('click', clearHighlight);
+
+        // === 書籤功能 ===
+        function getBookBookmarks() {
+            const key = state.currentFile || 'default';
+            if (!state.bookmarksByBook[key]) state.bookmarksByBook[key] = [];
+            return state.bookmarksByBook[key];
+        }
+
+        function extractCurrentPageSnippet() {
+            if (state.mode === 'txt') {
+                const totalLen = state.txtContent.length;
+                if (totalLen === 0) return '空白頁面';
+                const estStart = Math.floor((state.txtPage / Math.max(1, state.txtTotalPages)) * totalLen);
+                const snippet = state.txtContent.slice(estStart, estStart + 60).replace(/\s+/g, ' ').trim();
+                return snippet.slice(0, 15) || `第 ${state.txtPage + 1} 頁`;
+            }
+
+            if (state.mode === 'epub' && rendition) {
+                try {
+                    const loc = rendition.currentLocation();
+                    const cfi = loc && loc.start ? loc.start.cfi : null;
+                    const contentsList = rendition.getContents();
+                    if (cfi && contentsList && contentsList.length > 0) {
+                        const range = rendition.getRange(cfi);
+                        if (range) {
+                            const containerText = (range.startContainer.textContent || '').slice(range.startOffset);
+                            const bodyText = (contentsList[0].document.body ? contentsList[0].document.body.innerText : '').replace(/\s+/g, ' ').trim();
+                            const clean = (containerText.replace(/\s+/g, ' ').trim() || bodyText).slice(0, 15);
+                            if (clean) return clean;
+                        }
+                    }
+                } catch {}
+                return pageInfo.textContent.slice(0, 15) || 'EPUB 書籤';
+            }
+
+            return '尚未載入書籍';
+        }
+
+        function renderBookmarks() {
+            const list = getBookBookmarks();
+            bookmarkList.innerHTML = '';
+            if (!list || list.length === 0) {
+                bookmarkList.innerHTML = '<li class="muted-text">尚無書籤</li>';
+                return;
+            }
+
+            list.forEach(bm => {
+                const li = document.createElement('li');
+                li.className = 'bookmark-item';
+
+                const jumpBtn = document.createElement('button');
+                jumpBtn.type = 'button';
+                jumpBtn.className = 'bookmark-jump-btn';
+                jumpBtn.textContent = bm.label;
+                jumpBtn.addEventListener('click', () => {
+                    if (bm.type === 'txt' && state.mode === 'txt') {
+                        goToTxtPage(bm.page);
+                        sidebarBookmarks.classList.add('hidden');
+                    } else if (bm.type === 'epub' && state.mode === 'epub' && rendition && bm.cfi) {
+                        rendition.display(bm.cfi).then(() => {
+                            updateEpubPagination();
+                            sidebarBookmarks.classList.add('hidden');
+                        }).catch(() => {
+                            showToast('無法跳轉至此書籤位置。');
+                        });
+                    }
+                });
+
+                const delBtn = document.createElement('button');
+                delBtn.type = 'button';
+                delBtn.className = 'bookmark-del-btn';
+                delBtn.textContent = '刪除';
+                delBtn.addEventListener('click', () => {
+                    state.bookmarksByBook[state.currentFile] = getBookBookmarks().filter(item => item.id !== bm.id);
+                    saveLocalSettings();
+                    renderBookmarks();
+                });
+
+                li.appendChild(jumpBtn);
+                li.appendChild(delBtn);
+                bookmarkList.appendChild(li);
+            });
+        }
+
+        btnAddBookmark.addEventListener('click', () => {
+            if (!state.mode) {
+                showToast('請先匯入書籍再新增書籤。');
+                return;
+            }
+
+            const snippet = extractCurrentPageSnippet();
+            const bookmark = {
+                id: `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                label: snippet.length >= 15 ? `${snippet}...` : snippet,
+                type: state.mode,
+                page: state.txtPage,
+                cfi: state.epubCfi
+            };
+
+            const list = getBookBookmarks();
+            list.unshift(bookmark);
+            state.bookmarksByBook[state.currentFile] = list;
+            saveLocalSettings();
+            renderBookmarks();
+            showToast(`已新增書籤：「${bookmark.label}」`);
+        });
+
+        // === 啟動初始化流程 ===
+        initOptionalFirebase();
+        restoreSavedFontsFromIndexedDB();
+        initOfflineEpubEngine();
+        loadOptionalCloudFonts();
+        registerServiceWorker();
+    })();
+    </script>
+</body>
+</html>
