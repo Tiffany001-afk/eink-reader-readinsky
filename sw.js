@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eink-reader-offline-v2';
+const CACHE_NAME = 'eink-reader-offline-v4';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

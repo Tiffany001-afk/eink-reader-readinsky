@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#EFEBF5">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
-    <title>E-Ink 專屬電子書閱讀器 (莫蘭迪藍紫離線版)</title>
+    <title>E-Ink 專屬電子書閱讀器 (莫蘭迪藍紫極速離線版)</title>
     <!-- PWA Manifest (於網頁伺服器環境生效) -->
     <link rel="manifest" href="./manifest.json">
 
@@ -509,7 +509,6 @@
             background-color: var(--bg);
         }
 
-        /* 極淡莫蘭迪紫花瓣背景圖層（預設內建離線淡雅花瓣白布紋，亦可套用自訂背景圖） */
         .reader-bg-layer {
             position: absolute;
             inset: 0;
@@ -990,7 +989,7 @@
     <!-- 狀態提示列 -->
     <div id="toastMessage" class="toast-box hidden"></div>
 
-    <!-- 主程式邏輯（100% 離線可啟動） -->
+    <!-- 主程式邏輯（100% 離線可啟動 + 30MB+ 大型 EPUB 極速按需解壓引擎） -->
     <script>
     (function() {
         'use strict';
@@ -1094,6 +1093,8 @@
         let rendition = null;
         let epubLocations = [];
         let epubLocationsFailed = false;
+        let currentEpubByteLength = 0;
+        let isTurboLazyMode = false;
         let currentBookToken = 0;
         let selectedCfi = null;
         let selectedEpubText = '';
@@ -1102,7 +1103,16 @@
         let epubEngineReady = false;
         let epubEngineSource = 'loading';
 
-        // 自訂字體暫存清單
+        // 極速按需解壓索引與媒體快取（僅在開啟大型 EPUB 時建立，換書時釋放記憶體）
+        let zipExactIndex = new Map();
+        let zipBasenameIndex = new Map();
+        let lazyMediaCache = new Map();
+
+        // 目錄延遲渲染快取（避免上千章小說在開書時卡頓）
+        let pendingTocItems = null;
+        let tocRenderedForToken = -1;
+
+        // 自訂字體暫存清單（改用 Blob URL 避免重複複製巨大 ArrayBuffer）
         const customFonts = [];
 
         // Firebase 選配狀態
@@ -1110,6 +1120,11 @@
         let db = null;
         let currentUser = null;
         let currentAppId = 'eink-reader-default';
+
+        // === 讓出主執行緒（確保大檔載入前先更新進度文字） ===
+        function yieldToUI() {
+            return new Promise(resolve => setTimeout(resolve, 20));
+        }
 
         // === Toast 提示 ===
         let toastTimer = null;
@@ -1181,7 +1196,7 @@
             }
         }
 
-        // 取得雲端字體 CSS（分開宣告，避免單一字體失敗影響其他字體）
+        // 取得雲端字體 CSS
         function getCloudFontsCss() {
             return `
                 @import url('https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC&family=Noto+Serif+TC:wght@400;700&display=swap');
@@ -1233,7 +1248,7 @@
             }
         }
 
-        // === 2. IndexedDB 自訂字體離線永久儲存 ===
+        // === 2. IndexedDB 自訂字體離線永久儲存（Blob URL 輕量化） ===
         const FONT_DB_NAME = 'EInkReaderFontsDB';
         const FONT_STORE_NAME = 'fonts';
 
@@ -1256,8 +1271,19 @@
             try {
                 const idb = await openFontDB();
                 const tx = idb.transaction(FONT_STORE_NAME, 'readwrite');
-                tx.objectStore(FONT_STORE_NAME).put(fontEntry);
+                tx.objectStore(FONT_STORE_NAME).put({
+                    familyName: fontEntry.familyName,
+                    displayName: fontEntry.displayName,
+                    buffer: fontEntry.buffer
+                });
             } catch {}
+        }
+
+        function registerCustomFontBlob(entry) {
+            if (!entry.blobUrl && entry.buffer) {
+                entry.blobUrl = URL.createObjectURL(new Blob([entry.buffer], { type: 'font/ttf' }));
+            }
+            return entry;
         }
 
         async function restoreSavedFontsFromIndexedDB() {
@@ -1274,10 +1300,15 @@
                 for (const entry of allFonts) {
                     if (!entry || !entry.familyName || !entry.buffer) continue;
                     try {
-                        const face = new FontFace(entry.familyName, entry.buffer.slice(0));
+                        registerCustomFontBlob(entry);
+                        const face = new FontFace(entry.familyName, `url(${entry.blobUrl})`);
                         await face.load();
                         document.fonts.add(face);
-                        customFonts.push(entry);
+                        customFonts.push({
+                            familyName: entry.familyName,
+                            displayName: entry.displayName,
+                            blobUrl: entry.blobUrl
+                        });
 
                         const optionValue = `'${entry.familyName}', sans-serif`;
                         if (![...fontSelect.options].some(o => o.value === optionValue)) {
@@ -1475,6 +1506,10 @@
             const willOpen = sidebarTOC.classList.contains('hidden');
             closeAllPanels('sidebarTOC');
             sidebarTOC.classList.toggle('hidden', !willOpen);
+            if (willOpen && state.mode === 'epub' && tocRenderedForToken !== currentBookToken) {
+                renderTOC(pendingTocItems || []);
+                tocRenderedForToken = currentBookToken;
+            }
         });
         btnCloseTOC.addEventListener('click', () => sidebarTOC.classList.add('hidden'));
 
@@ -1713,10 +1748,165 @@
             }
         });
 
+        // === 極速按需解壓輔助工具（針對 30MB+ 大型 EPUB） ===
+        function clearLazyMediaCache() {
+            lazyMediaCache.forEach(url => {
+                try { URL.revokeObjectURL(url); } catch {}
+            });
+            lazyMediaCache.clear();
+            zipExactIndex.clear();
+            zipBasenameIndex.clear();
+        }
+
+        function buildZipFileIndex() {
+            zipExactIndex.clear();
+            zipBasenameIndex.clear();
+            if (!book || !book.archive || !book.archive.zip || !book.archive.zip.files) return;
+
+            const keys = Object.keys(book.archive.zip.files);
+            for (const key of keys) {
+                const norm = key.replace(/^\/+/, '').toLowerCase();
+                zipExactIndex.set(norm, key);
+                const base = norm.split('/').pop();
+                if (base) {
+                    if (!zipBasenameIndex.has(base)) zipBasenameIndex.set(base, []);
+                    zipBasenameIndex.get(base).push(key);
+                }
+            }
+        }
+
+        function getDirOfPath(p) {
+            if (!p) return '';
+            const clean = p.replace(/^\/+/, '');
+            const idx = clean.lastIndexOf('/');
+            return idx >= 0 ? clean.slice(0, idx + 1) : '';
+        }
+
+        function resolveZipKeyForChapterAsset(sectionHref, rawAttr) {
+            if (!rawAttr || !zipExactIndex.size) return null;
+            const trimmed = rawAttr.trim();
+            if (!trimmed || /^(https?:|data:|blob:|mailto:|#)/i.test(trimmed)) return null;
+
+            let cleanAttr = trimmed.split('#')[0].split('?')[0];
+            try { cleanAttr = decodeURIComponent(cleanAttr); } catch {}
+
+            const opfDir = (book && book.path && book.path.directory)
+                ? book.path.directory.replace(/^\/+/, '')
+                : '';
+
+            const secNorm = (sectionHref || '').replace(/^\/+/, '');
+            const secDir = getDirOfPath(secNorm);
+            const candidates = [];
+
+            const pushResolved = (baseDir, rel) => {
+                try {
+                    const resolved = new URL(rel, 'https://epub.local/' + baseDir).pathname.replace(/^\/+/, '');
+                    candidates.push(resolved);
+                } catch {}
+            };
+
+            pushResolved(secDir, cleanAttr);
+            if (opfDir && !secDir.startsWith(opfDir)) {
+                pushResolved(opfDir + secDir, cleanAttr);
+            }
+            if (opfDir) {
+                pushResolved(opfDir, cleanAttr);
+            }
+            candidates.push(cleanAttr.replace(/^\/+/, ''));
+
+            for (const cand of candidates) {
+                const hit = zipExactIndex.get(cand.toLowerCase());
+                if (hit) return hit;
+            }
+
+            // 最後備援：依檔名快速比對
+            const base = cleanAttr.split('/').pop().toLowerCase();
+            const matches = zipBasenameIndex.get(base);
+            if (matches && matches.length > 0) {
+                return matches[0];
+            }
+            return null;
+        }
+
+        function guessMimeType(filename) {
+            const lower = (filename || '').toLowerCase();
+            if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+            if (lower.endsWith('.png')) return 'image/png';
+            if (lower.endsWith('.gif')) return 'image/gif';
+            if (lower.endsWith('.webp')) return 'image/webp';
+            if (lower.endsWith('.svg')) return 'image/svg+xml';
+            return 'application/octet-stream';
+        }
+
+        async function getLazyBlobUrl(zipKey) {
+            if (!zipKey || !book || !book.archive || !book.archive.zip) return null;
+            if (lazyMediaCache.has(zipKey)) return lazyMediaCache.get(zipKey);
+
+            const entry = book.archive.zip.file(zipKey);
+            if (!entry) return null;
+
+            try {
+                const rawBlob = await entry.async('blob');
+                const typedBlob = rawBlob.type ? rawBlob : new Blob([rawBlob], { type: guessMimeType(zipKey) });
+                const blobUrl = URL.createObjectURL(typedBlob);
+                lazyMediaCache.set(zipKey, blobUrl);
+                return blobUrl;
+            } catch {
+                return null;
+            }
+        }
+
+        // 僅針對「目前正在觀看的這一章」按需解壓縮圖片與 SVG 封面（不阻塞文字顯示）
+        function lazyLoadChapterMedia(contents, token) {
+            if (!isTurboLazyMode || !contents || !contents.document || !book || !book.archive || !book.archive.zip) return;
+
+            const docObj = contents.document;
+            const sectionHref = (contents.section && (contents.section.canonical || contents.section.href)) || '';
+            const tasks = [];
+
+            const imgEls = docObj.querySelectorAll('img[src]');
+            imgEls.forEach(img => {
+                const rawSrc = img.getAttribute('src');
+                const zipKey = resolveZipKeyForChapterAsset(sectionHref, rawSrc);
+                if (!zipKey) return;
+                tasks.push(
+                    getLazyBlobUrl(zipKey).then(blobUrl => {
+                        if (blobUrl && token === currentBookToken) {
+                            img.setAttribute('src', blobUrl);
+                        }
+                    })
+                );
+            });
+
+            const svgImages = docObj.querySelectorAll('image');
+            svgImages.forEach(el => {
+                const rawHref = el.getAttribute('href') || el.getAttribute('xlink:href') || el.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
+                const zipKey = resolveZipKeyForChapterAsset(sectionHref, rawHref);
+                if (!zipKey) return;
+                tasks.push(
+                    getLazyBlobUrl(zipKey).then(blobUrl => {
+                        if (blobUrl && token === currentBookToken) {
+                            el.setAttribute('href', blobUrl);
+                            el.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', blobUrl);
+                        }
+                    })
+                );
+            });
+
+            if (tasks.length > 0) {
+                Promise.all(tasks).then(() => {
+                    if (token === currentBookToken) {
+                        scheduleEpubResize();
+                    }
+                }).catch(() => {});
+            }
+        }
+
         // === 安全清理 EPUB 實例 ===
         function cleanupEpub() {
             currentBookToken++;
             clearTimeout(epubResizeTimer);
+            clearLazyMediaCache();
             if (rendition) {
                 try { rendition.destroy(); } catch {}
                 rendition = null;
@@ -1727,6 +1917,10 @@
             }
             epubLocations = [];
             epubLocationsFailed = false;
+            currentEpubByteLength = 0;
+            isTurboLazyMode = false;
+            pendingTocItems = null;
+            tocRenderedForToken = -1;
             selectedCfi = null;
             selectedEpubText = '';
             isEpubNavigating = false;
@@ -1822,7 +2016,6 @@
             pageInfo.textContent = `目前頁數 ${clamped + 1} / 總頁數 ${state.txtTotalPages}`;
         }
 
-        // 還原先前儲存的 TXT 畫線（依文字內容重新標記）
         function restoreTxtHighlightsInDom() {
             if (state.mode !== 'txt') return;
             const list = getBookHighlights().filter(h => h && h.id && h.type === 'txt' && h.text);
@@ -1852,13 +2045,19 @@
             });
         }
 
-        // === EPUB 引擎 ===
+        // === EPUB 引擎（30MB+ 超大檔極速按需解壓模式） ===
         async function loadEpub(file) {
+            const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+            pageInfo.textContent = `正在載入 ${sizeMB} MB 書籍（極速模式）...`;
+            showToast(`正在極速載入 ${file.name} (${sizeMB} MB)...`, 2500);
+            await yieldToUI();
+
             try {
                 const buffer = await file.arrayBuffer();
                 await loadEpubFromArrayBuffer(buffer, file.name);
             } catch {
                 showToast('無法讀取此 EPUB 檔案。');
+                pageInfo.textContent = '載入失敗';
             }
         }
 
@@ -1874,27 +2073,51 @@
             state.mode = 'epub';
             state.currentFile = fileName;
             state.epubCfi = null;
+            currentEpubByteLength = buffer ? buffer.byteLength : 0;
+
+            const sizeMB = currentEpubByteLength / (1024 * 1024);
+            // 檔案 >= 3MB 即啟用「極速按需解壓模式 (replacements: 'none')」
+            // 徹底略過啟動時預先解壓全書插圖與內嵌字體，讓 30MB+ EPUB 也能秒開！
+            isTurboLazyMode = currentEpubByteLength >= 3 * 1024 * 1024;
 
             txtViewer.classList.add('hidden');
             epubViewer.classList.remove('hidden');
-            pageInfo.textContent = '載入 EPUB 中...';
+            pageInfo.textContent = isTurboLazyMode
+                ? `極速模式解析目錄中 (${sizeMB.toFixed(1)} MB)...`
+                : '正在解析 EPUB 結構...';
+            await yieldToUI();
 
             try {
-                book = window.ePub(buffer);
+                book = window.ePub(buffer, {
+                    openAs: 'binary',
+                    replacements: isTurboLazyMode ? 'none' : 'blobUrl'
+                });
                 await book.ready;
                 if (token !== currentBookToken) return;
+
+                if (isTurboLazyMode) {
+                    buildZipFileIndex();
+                }
 
                 if (book.package && book.package.metadata) {
                     book.package.metadata.direction = state.direction === 'vertical' ? 'rtl' : 'ltr';
                 }
 
+                // 背景讀取目錄資料，點開「選擇章節」時才渲染按鈕
                 book.loaded.navigation.then(nav => {
                     if (token !== currentBookToken) return;
-                    renderTOC(nav && nav.toc ? nav.toc : []);
+                    pendingTocItems = nav && Array.isArray(nav.toc) ? nav.toc : [];
+                    if (!sidebarTOC.classList.contains('hidden')) {
+                        renderTOC(pendingTocItems);
+                        tocRenderedForToken = token;
+                    }
                 }).catch(() => {
                     if (token !== currentBookToken) return;
-                    tocList.innerHTML = '<li class="muted-text">此書未提供目錄</li>';
+                    pendingTocItems = [];
                 });
+
+                pageInfo.textContent = '正在顯示頁面...';
+                await yieldToUI();
 
                 const saved = await getSavedBookProgress(fileName);
                 const startCfi = saved && saved.epubCfi ? saved.epubCfi : null;
@@ -1902,7 +2125,12 @@
                 initEpubRendition(startCfi);
                 renderBookmarks();
                 renderHighlightSummary();
-                showToast(`已載入：${fileName}`);
+
+                if (isTurboLazyMode) {
+                    showToast(`已極速開啟大型書籍：${fileName} (${sizeMB.toFixed(1)} MB)`);
+                } else {
+                    showToast(`已載入：${fileName}`);
+                }
             } catch {
                 if (token !== currentBookToken) return;
                 showToast('EPUB 解析失敗，請確認檔案未受損或未受 DRM 保護。');
@@ -1943,6 +2171,10 @@
             });
 
             rendition.hooks.content.register((contents) => {
+                // 極速模式下按需載入當前章節插圖，不阻塞文字渲染
+                if (isTurboLazyMode) {
+                    lazyLoadChapterMedia(contents, token);
+                }
                 return injectFontsAndStylesToEpubContent(contents);
             });
 
@@ -1974,22 +2206,34 @@
                 restoreEpubHighlights();
                 updateEpubPagination();
 
+                // 大型檔案或章節數較多時，略過耗時的全書掃描，直接以章節進度估算全書百分比
+                const isLargeEpub = isTurboLazyMode || book.spine.spineItems.length > 40;
+                if (isLargeEpub) {
+                    epubLocationsFailed = true;
+                    epubLocations = [];
+                    updateEpubPagination();
+                    return;
+                }
+
                 if (epubLocations.length === 0 && !epubLocationsFailed && book.locations && typeof book.locations.generate === 'function') {
-                    Promise.resolve()
-                        .then(() => book.locations.generate(800))
-                        .then(locations => {
-                            if (token !== currentBookToken || !book) return;
-                            if (Array.isArray(locations) && locations.length > 0) {
-                                epubLocations = locations;
+                    setTimeout(() => {
+                        if (token !== currentBookToken || !book) return;
+                        Promise.resolve()
+                            .then(() => book.locations.generate(1600))
+                            .then(locations => {
+                                if (token !== currentBookToken || !book) return;
+                                if (Array.isArray(locations) && locations.length > 0) {
+                                    epubLocations = locations;
+                                    updateEpubPagination();
+                                }
+                            })
+                            .catch(() => {
+                                if (token !== currentBookToken) return;
+                                epubLocationsFailed = true;
+                                epubLocations = [];
                                 updateEpubPagination();
-                            }
-                        })
-                        .catch(() => {
-                            if (token !== currentBookToken) return;
-                            epubLocationsFailed = true;
-                            epubLocations = [];
-                            updateEpubPagination();
-                        });
+                            });
+                    }, 1500);
                 }
             }).catch(() => {
                 if (token !== currentBookToken) return;
@@ -2058,6 +2302,8 @@
                 return;
             }
 
+            const fragment = document.createDocumentFragment();
+
             function appendItems(list, depth = 0) {
                 list.forEach(item => {
                     const li = document.createElement('li');
@@ -2084,7 +2330,7 @@
                     });
 
                     li.appendChild(btn);
-                    tocList.appendChild(li);
+                    fragment.appendChild(li);
 
                     if (item.subitems && item.subitems.length > 0) {
                         appendItems(item.subitems, depth + 1);
@@ -2093,15 +2339,15 @@
             }
 
             appendItems(items, 0);
+            tocList.appendChild(fragment);
         }
 
-        // === 樣式與字體同步引擎 ===
+        // === 樣式與字體同步引擎（按需零複製注入） ===
         async function injectFontsAndStylesToEpubContent(contents) {
             if (!contents || !contents.document) return;
             const docObj = contents.document;
             const head = docObj.head || docObj.getElementsByTagName('head')[0];
 
-            // 1. 有網路時注入雲端字體
             if (navigator.onLine && head && !docObj.getElementById('eink-cloud-fonts')) {
                 const fontStyle = docObj.createElement('style');
                 fontStyle.id = 'eink-cloud-fonts';
@@ -2109,22 +2355,20 @@
                 head.appendChild(fontStyle);
             }
 
-            // 2. 注入本機自訂字體（100% 離線跨 iframe 生效）
-            if (contents.window && contents.window.FontFace && docObj.fonts && customFonts.length > 0) {
-                for (const fontEntry of customFonts) {
-                    const alreadyLoaded = [...docObj.fonts].some(f => f.family.replace(/['"]/g, '') === fontEntry.familyName);
-                    if (!alreadyLoaded) {
-                        try {
-                            const clonedBuffer = fontEntry.buffer.slice(0);
-                            const face = new contents.window.FontFace(fontEntry.familyName, clonedBuffer);
-                            await face.load();
-                            docObj.fonts.add(face);
-                        } catch {}
-                    }
+            let customFontFaceCss = '';
+            if (state.fontFamily && customFonts.length > 0) {
+                const activeCustomFont = customFonts.find(f => state.fontFamily.includes(f.familyName));
+                if (activeCustomFont && activeCustomFont.blobUrl) {
+                    customFontFaceCss = `
+                        @font-face {
+                            font-family: '${activeCustomFont.familyName}';
+                            src: url('${activeCustomFont.blobUrl}') format('truetype');
+                            font-display: swap;
+                        }
+                    `;
                 }
             }
 
-            // 3. 強制套用字體、大小、行距、深淺色與直橫排
             const bgColor = state.isDarkMode ? '#0E0F17' : 'transparent';
             const textColor = state.isDarkMode ? '#F2F3F9' : '#2B2D40';
             const isVertical = state.direction === 'vertical';
@@ -2133,7 +2377,6 @@
                 ? `font-family: ${state.fontFamily} !important;`
                 : '';
 
-            // 直排專用修正：解除 epub.js 橫排多欄寬度對垂直軸的干擾，並重置上下留白讓文字緊貼頂端對齊
             const verticalFixCss = isVertical ? `
                 html {
                     column-width: auto !important;
@@ -2185,6 +2428,7 @@
             }
             if (overrideStyle) {
                 overrideStyle.textContent = `
+                    ${customFontFaceCss}
                     html, body {
                         background-color: ${bgColor} !important;
                         color: ${textColor} !important;
@@ -2202,6 +2446,12 @@
                     }
                     p, div, span, li, blockquote {
                         font-size: ${state.fontSize}px !important;
+                    }
+                    img, svg {
+                        max-width: 100% !important;
+                        max-height: 92vh !important;
+                        height: auto !important;
+                        object-fit: contain !important;
                     }
                     ${verticalFixCss}
                 `;
@@ -2257,13 +2507,13 @@
 
             try {
                 const buffer = await file.arrayBuffer();
-                const face = new FontFace(uniqueFamily, buffer.slice(0));
+                const blobUrl = URL.createObjectURL(new Blob([buffer], { type: 'font/ttf' }));
+                const face = new FontFace(uniqueFamily, `url(${blobUrl})`);
                 await face.load();
                 document.fonts.add(face);
 
-                const entry = { familyName: uniqueFamily, displayName: baseName, buffer };
-                customFonts.push(entry);
-                await saveFontToIndexedDB(entry);
+                await saveFontToIndexedDB({ familyName: uniqueFamily, displayName: baseName, buffer });
+                customFonts.push({ familyName: uniqueFamily, displayName: baseName, blobUrl });
 
                 const option = document.createElement('option');
                 option.value = `'${uniqueFamily}', sans-serif`;
@@ -2409,7 +2659,6 @@
         function renderHighlightSummary() {
             const allItems = getBookHighlights().filter(Boolean);
 
-            // 1. 渲染顏色篩選按鈕列
             highlightFilterBar.innerHTML = '';
 
             const allBtn = document.createElement('button');
@@ -2435,7 +2684,6 @@
                 highlightFilterBar.appendChild(chip);
             });
 
-            // 2. 篩選並渲染畫線文字卡片
             const filtered = state.activeHighlightFilter === 'all'
                 ? allItems
                 : allItems.filter(item => String(item.color || '').toLowerCase() === String(state.activeHighlightFilter).toLowerCase());
