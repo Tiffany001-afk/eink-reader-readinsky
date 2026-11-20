@@ -4,8 +4,8 @@
   "description": "專為黑白電子紙打造的高對比、零動畫離線電子書閱讀器",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "background_color": "#F8F7FB",
+  "theme_color": "#EFEBF5",
   "orientation": "any",
   "icons": [
     {

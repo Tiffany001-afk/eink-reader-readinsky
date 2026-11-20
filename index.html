@@ -3,34 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#ffffff">
+    <meta name="theme-color" content="#EFEBF5">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
-    <title>E-Ink 專屬電子書閱讀器 (離線版)</title>
-    <!-- PWA Manifest (於網頁伺服器 / PWABuilder 環境生效) -->
+    <title>E-Ink 專屬電子書閱讀器 (莫蘭迪藍紫離線版)</title>
+    <!-- PWA Manifest (於網頁伺服器環境生效) -->
     <link rel="manifest" href="./manifest.json">
 
     <style>
         /* =========================================================
-           100% 離線內建高對比 E-Ink 樣式（完全不依賴網路 CSS CDN）
+           100% 離線內建樣式：淡色系莫蘭迪藍紫風格（兼顧電子紙清晰度）
            ========================================================= */
         :root {
-            --bg: #ffffff;
-            --fg: #000000;
-            --border: #000000;
-            --muted: #555555;
-            --overlay: rgba(255, 255, 255, 0.92);
+            --bg: #F8F7FB;
+            --surface: #EFEBF6;
+            --surface-soft: #F4F1FA;
+            --surface-hover: #E1DBEE;
+            --accent: #7F86AD;
+            --accent-strong: #5E658C;
+            --fg: #2B2D40;
+            --border: #9CA1BE;
+            --border-strong: #7F86AD;
+            --muted: #707491;
+            --overlay: rgba(245, 243, 250, 0.90);
+            --btn-active-bg: #6B7299;
+            --btn-active-fg: #FFFFFF;
         }
 
         html.dark {
-            --bg: #000000;
-            --fg: #ffffff;
-            --border: #ffffff;
-            --muted: #bbbbbb;
-            --overlay: rgba(0, 0, 0, 0.92);
+            --bg: #0E0F17;
+            --surface: #171926;
+            --surface-soft: #1D2030;
+            --surface-hover: #2A2E45;
+            --accent: #9AA2CC;
+            --accent-strong: #B6BDE0;
+            --fg: #F2F3F9;
+            --border: #555B7A;
+            --border-strong: #8B92B8;
+            --muted: #A9AFC9;
+            --overlay: rgba(14, 15, 23, 0.92);
+            --btn-active-bg: #D8DCF0;
+            --btn-active-fg: #12141F;
         }
 
-        /* E-Ink 專用：強制移除所有過場動畫、陰影與漸層，避免殘影 */
+        /* 保留電子紙友善設計：移除過場動畫與重陰影，避免殘影 */
         * {
             box-sizing: border-box;
             transition: none !important;
@@ -46,16 +62,15 @@
             overflow: hidden;
             background-color: var(--bg);
             color: var(--fg);
-            font-family: -apple-system, BlinkMacSystemFont, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "LINE Seed TW", "PingFang TC", "Microsoft JhengHei", sans-serif;
         }
 
         body {
             display: flex;
             flex-direction: column;
-            border: 6px solid var(--border);
+            border: 4px solid var(--border-strong);
         }
 
-        /* 隱藏原生捲軸 */
         ::-webkit-scrollbar {
             display: none;
         }
@@ -70,7 +85,8 @@
             align-items: center;
             justify-content: center;
             gap: 6px;
-            border: 2px solid var(--border);
+            border: 2px solid var(--border-strong);
+            border-radius: 6px;
             background-color: var(--bg);
             color: var(--fg);
             padding: 6px 12px;
@@ -82,9 +98,15 @@
             user-select: none;
         }
 
-        .eink-btn:active {
-            background-color: var(--fg);
-            color: var(--bg);
+        .eink-btn:hover {
+            background-color: var(--surface-hover);
+        }
+
+        .eink-btn:active,
+        .eink-btn.active-btn {
+            background-color: var(--btn-active-bg);
+            color: var(--btn-active-fg);
+            border-color: var(--accent-strong);
         }
 
         .eink-btn:disabled {
@@ -100,7 +122,8 @@
         .eink-select,
         .eink-input {
             width: 100%;
-            border: 2px solid var(--border);
+            border: 2px solid var(--border-strong);
+            border-radius: 6px;
             background-color: var(--bg);
             color: var(--fg);
             padding: 8px;
@@ -110,7 +133,7 @@
 
         /* 頂部工具列 */
         .app-header {
-            border-bottom: 4px solid var(--border);
+            border-bottom: 3px solid var(--border-strong);
             padding: 8px 12px;
             display: flex;
             flex-wrap: wrap;
@@ -119,7 +142,7 @@
             gap: 8px;
             flex-shrink: 0;
             z-index: 30;
-            background-color: var(--bg);
+            background-color: var(--surface);
             position: relative;
         }
 
@@ -142,10 +165,12 @@
             left: 0;
             width: 224px;
             background-color: var(--bg);
-            border: 4px solid var(--border);
+            border: 3px solid var(--border-strong);
+            border-radius: 8px;
             z-index: 50;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
         }
 
         .cloud-menu button {
@@ -154,7 +179,7 @@
             font-size: 15px;
             font-weight: 700;
             border: none;
-            border-bottom: 2px solid var(--border);
+            border-bottom: 1px solid var(--border);
             background-color: var(--bg);
             color: var(--fg);
             cursor: pointer;
@@ -164,9 +189,13 @@
             border-bottom: none;
         }
 
+        .cloud-menu button:hover {
+            background-color: var(--surface-hover);
+        }
+
         .cloud-menu button:active {
-            background-color: var(--fg);
-            color: var(--bg);
+            background-color: var(--btn-active-bg);
+            color: var(--btn-active-fg);
         }
 
         /* 畫線註記浮動選單 */
@@ -174,28 +203,43 @@
             position: absolute;
             top: calc(100% + 6px);
             right: 0;
-            background-color: var(--bg);
-            border: 4px solid var(--border);
-            padding: 8px;
+            background-color: var(--surface-soft);
+            border: 3px solid var(--border-strong);
+            border-radius: 8px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 50;
+            min-width: 270px;
+        }
+
+        .highlight-swatches-row {
             display: flex;
             flex-wrap: wrap;
             align-items: center;
+            justify-content: space-between;
             gap: 8px;
-            z-index: 50;
-            min-width: 260px;
-            justify-content: flex-end;
+        }
+
+        .highlight-actions-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .highlight-actions-row .eink-btn {
+            flex: 1;
+            font-size: 14px;
+            padding: 7px 8px;
         }
 
         .color-btn {
-            width: 32px;
-            height: 32px;
-            border: 2px solid #000000;
+            width: 34px;
+            height: 34px;
+            border: 2px solid var(--accent-strong);
+            border-radius: 50%;
             cursor: pointer;
             padding: 0;
-        }
-
-        html.dark .color-btn {
-            border-color: #ffffff;
         }
 
         .bookmark-icon {
@@ -223,9 +267,9 @@
             position: absolute;
             top: 0;
             height: 100%;
-            width: 78%;
-            max-width: 320px;
-            background-color: var(--bg);
+            width: 82%;
+            max-width: 340px;
+            background-color: var(--surface-soft);
             z-index: 25;
             display: flex;
             flex-direction: column;
@@ -233,31 +277,34 @@
 
         .sidebar-left {
             left: 0;
-            border-right: 4px solid var(--border);
+            border-right: 3px solid var(--border-strong);
         }
 
         .sidebar-right {
             right: 0;
-            border-left: 4px solid var(--border);
+            border-left: 3px solid var(--border-strong);
         }
 
         .sidebar-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px;
-            border-bottom: 4px solid var(--border);
+            padding: 12px 14px;
+            border-bottom: 3px solid var(--border-strong);
+            background-color: var(--surface);
         }
 
         .sidebar-title {
             margin: 0;
-            font-size: 20px;
+            font-size: 19px;
             font-weight: 700;
+            color: var(--accent-strong);
         }
 
         .sidebar-action-bar {
             padding: 12px;
-            border-bottom: 4px solid var(--border);
+            border-bottom: 2px solid var(--border);
+            background-color: var(--surface-soft);
         }
 
         .sidebar-content {
@@ -266,24 +313,26 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 18px;
+            gap: 16px;
         }
 
         .sidebar-list {
             list-style: none;
             margin: 0;
-            padding: 14px;
+            padding: 12px;
             overflow-y: auto;
             flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 10px;
             font-weight: 700;
         }
 
         .muted-text {
             color: var(--muted);
             font-weight: 700;
+            font-size: 14px;
+            line-height: 1.5;
         }
 
         .setting-group {
@@ -294,6 +343,8 @@
 
         .setting-label {
             font-weight: 700;
+            font-size: 14px;
+            color: var(--accent-strong);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -302,7 +353,7 @@
         .range-slider {
             width: 100%;
             height: 24px;
-            accent-color: var(--fg);
+            accent-color: var(--accent-strong);
         }
 
         .toc-item-btn {
@@ -310,17 +361,21 @@
             text-align: left;
             padding: 10px 8px;
             border: none;
-            border-bottom: 2px solid var(--border);
-            background-color: var(--bg);
+            border-bottom: 1px solid var(--border);
+            background-color: transparent;
             color: var(--fg);
             font-size: 15px;
             font-weight: 700;
             cursor: pointer;
         }
 
+        .toc-item-btn:hover {
+            background-color: var(--surface-hover);
+        }
+
         .toc-item-btn:active {
-            background-color: var(--fg);
-            color: var(--bg);
+            background-color: var(--btn-active-bg);
+            color: var(--btn-active-fg);
         }
 
         .bookmark-item {
@@ -328,7 +383,7 @@
             align-items: center;
             justify-content: space-between;
             gap: 8px;
-            border-bottom: 2px solid var(--border);
+            border-bottom: 1px solid var(--border);
             padding-bottom: 8px;
         }
 
@@ -338,7 +393,7 @@
             text-align: left;
             padding: 6px 4px;
             border: none;
-            background-color: var(--bg);
+            background-color: transparent;
             color: var(--fg);
             font-size: 15px;
             font-weight: 700;
@@ -348,13 +403,13 @@
             white-space: nowrap;
         }
 
-        .bookmark-jump-btn:active {
-            background-color: var(--fg);
-            color: var(--bg);
+        .bookmark-jump-btn:hover {
+            background-color: var(--surface-hover);
         }
 
         .bookmark-del-btn {
-            border: 2px solid var(--border);
+            border: 2px solid var(--border-strong);
+            border-radius: 4px;
             background-color: var(--bg);
             color: var(--fg);
             padding: 4px 8px;
@@ -365,11 +420,85 @@
         }
 
         .bookmark-del-btn:active {
-            background-color: var(--fg);
-            color: var(--bg);
+            background-color: var(--btn-active-bg);
+            color: var(--btn-active-fg);
         }
 
-        /* 閱讀主畫面 */
+        /* 畫線註記統整：顏色篩選列與項目卡片 */
+        .hl-filter-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .hl-filter-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 9px;
+            border: 2px solid var(--border-strong);
+            border-radius: 999px;
+            background-color: var(--bg);
+            color: var(--fg);
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .hl-filter-chip.active-chip {
+            background-color: var(--btn-active-bg);
+            color: var(--btn-active-fg);
+            border-color: var(--accent-strong);
+        }
+
+        .hl-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 1px solid #333333;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+
+        .hl-card {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            border: 2px solid var(--border);
+            border-left-width: 8px;
+            border-radius: 6px;
+            background-color: var(--bg);
+            padding: 10px;
+        }
+
+        .hl-card-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .hl-card-text-btn {
+            width: 100%;
+            text-align: left;
+            border: none;
+            background-color: transparent;
+            color: var(--fg);
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1.5;
+            padding: 2px 0;
+            cursor: pointer;
+            word-break: break-word;
+        }
+
+        .hl-card-text-btn:hover {
+            text-decoration: underline;
+        }
+
+        /* 閱讀主畫面 + 極淡紫花瓣白布紋背景 */
         .reader-main {
             flex: 1;
             width: 100%;
@@ -377,19 +506,38 @@
             position: relative;
             padding: 10px 20px;
             overflow: hidden;
+            background-color: var(--bg);
         }
 
-        #epubViewer {
+        /* 極淡莫蘭迪紫花瓣背景圖層（預設內建離線淡雅花瓣白布紋，亦可套用自訂背景圖） */
+        .reader-bg-layer {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            background-position: center;
+            background-size: cover;
+            background-repeat: no-repeat;
+            opacity: 0.16;
+            background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 900'%3E%3Cdefs%3E%3CradialGradient id='cloth' cx='50%25' cy='45%25' r='70%25'%3E%3Cstop offset='0%25' stop-color='%23FFFFFF'/%3E%3Cstop offset='65%25' stop-color='%23F4F1FA'/%3E%3Cstop offset='100%25' stop-color='%23E7E3F3'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='1200' height='900' fill='url(%23cloth)'/%3E%3Cpath d='M0 240 Q320 190 640 250 T1200 220' fill='none' stroke='%23DCD7EB' stroke-width='28' opacity='0.35'/%3E%3Cpath d='M0 620 Q360 680 740 600 T1200 660' fill='none' stroke='%23E0DCF0' stroke-width='36' opacity='0.35'/%3E%3Cg opacity='0.78'%3E%3Cellipse cx='150' cy='140' rx='26' ry='14' transform='rotate(-28 150 140)' fill='%238E85C2'/%3E%3Cellipse cx='192' cy='168' rx='20' ry='11' transform='rotate(32 192 168)' fill='%23A9A1D6'/%3E%3Cellipse cx='126' cy='182' rx='18' ry='10' transform='rotate(-65 126 182)' fill='%237D8AC0'/%3E%3Cellipse cx='1040' cy='125' rx='24' ry='13' transform='rotate(24 1040 125)' fill='%239389C7'/%3E%3Cellipse cx='1082' cy='160' rx='18' ry='10' transform='rotate(-38 1082 160)' fill='%23B4ADD9'/%3E%3Cellipse cx='985' cy='170' rx='16' ry='9' transform='rotate(58 985 170)' fill='%238391C7'/%3E%3Cellipse cx='210' cy='760' rx='28' ry='14' transform='rotate(18 210 760)' fill='%239188C4'/%3E%3Cellipse cx='158' cy='720' rx='19' ry='10' transform='rotate(-44 158 720)' fill='%23B0A8D9'/%3E%3Cellipse cx='265' cy='790' rx='16' ry='9' transform='rotate(-15 265 790)' fill='%237E8BC2'/%3E%3Cellipse cx='1020' cy='760' rx='26' ry='13' transform='rotate(-22 1020 760)' fill='%238B82BF'/%3E%3Cellipse cx='1075' cy='722' rx='21' ry='11' transform='rotate(36 1075 722)' fill='%23A79FD4'/%3E%3Cellipse cx='970' cy='795' rx='17' ry='9' transform='rotate(12 970 795)' fill='%237F8EC4'/%3E%3Cellipse cx='590' cy='95' rx='18' ry='9' transform='rotate(15 590 95)' fill='%23A9A2D4'/%3E%3Cellipse cx='645' cy='815' rx='20' ry='10' transform='rotate(-20 645 815)' fill='%239C94CC'/%3E%3Cellipse cx='95' cy='460' rx='19' ry='10' transform='rotate(48 95 460)' fill='%239F97CF'/%3E%3Cellipse cx='1115' cy='445' rx='21' ry='11' transform='rotate(-52 1115 445)' fill='%238E96C9'/%3E%3C/g%3E%3C/svg%3E");
+        }
+
+        html.dark .reader-bg-layer {
+            opacity: 0;
+        }
+
+        #epubViewer,
+        #txtViewer {
+            position: relative;
+            z-index: 1;
             width: 100%;
             height: 100%;
             overflow: hidden;
+            background-color: transparent;
         }
 
         /* TXT 單頁分頁容器 */
         #txtViewer {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
             scroll-behavior: auto;
         }
 
@@ -403,6 +551,7 @@
             font-size: 24px;
             line-height: 1.8;
             font-family: inherit;
+            background-color: transparent;
         }
 
         /* TXT 直排模式（由右至左） */
@@ -416,55 +565,61 @@
         }
 
         .highlight-bg {
-            color: #000000 !important;
+            color: #1F2030 !important;
             padding: 0 2px;
+            border-radius: 2px;
         }
 
         /* 底部控制列 */
         .app-footer {
-            height: 62px;
-            border-top: 4px solid var(--border);
+            height: 60px;
+            border-top: 3px solid var(--border-strong);
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-shrink: 0;
             z-index: 10;
-            background-color: var(--bg);
+            background-color: var(--surface);
         }
 
         .page-btn {
             height: 100%;
             padding: 0 24px;
-            font-size: 19px;
+            font-size: 18px;
             font-weight: 700;
             border: none;
-            background-color: var(--bg);
+            background-color: var(--surface);
             color: var(--fg);
             cursor: pointer;
             white-space: nowrap;
         }
 
+        .page-btn:hover {
+            background-color: var(--surface-hover);
+        }
+
         .page-btn-prev {
-            border-right: 4px solid var(--border);
+            border-right: 3px solid var(--border-strong);
         }
 
         .page-btn-next {
-            border-left: 4px solid var(--border);
+            border-left: 3px solid var(--border-strong);
         }
 
         .page-btn:active {
-            background-color: var(--fg);
-            color: var(--bg);
+            background-color: var(--btn-active-bg);
+            color: var(--btn-active-fg);
         }
 
         .page-info {
             font-weight: 700;
-            font-size: 16px;
+            font-size: 15px;
             padding: 0 12px;
             text-align: center;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            color: var(--accent-strong);
         }
 
         /* 雲端匯入視窗 */
@@ -483,7 +638,8 @@
             width: 100%;
             max-width: 440px;
             background-color: var(--bg);
-            border: 4px solid var(--border);
+            border: 3px solid var(--border-strong);
+            border-radius: 10px;
             padding: 16px;
             display: flex;
             flex-direction: column;
@@ -494,7 +650,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 4px solid var(--border);
+            border-bottom: 2px solid var(--border);
             padding-bottom: 8px;
         }
 
@@ -502,6 +658,7 @@
             margin: 0;
             font-size: 20px;
             font-weight: 700;
+            color: var(--accent-strong);
         }
 
         .modal-desc {
@@ -512,7 +669,9 @@
         }
 
         .modal-status {
-            border: 2px solid var(--border);
+            border: 2px solid var(--border-strong);
+            border-radius: 6px;
+            background-color: var(--surface-soft);
             padding: 8px;
             font-size: 14px;
             font-weight: 700;
@@ -520,7 +679,7 @@
         }
 
         .modal-status a {
-            color: var(--fg);
+            color: var(--accent-strong);
             text-decoration: underline;
         }
 
@@ -535,22 +694,26 @@
         /* 離線狀態徽章 */
         .offline-badge {
             font-size: 12px;
-            border: 2px solid var(--border);
-            padding: 4px 8px;
+            border: 2px solid var(--border-strong);
+            border-radius: 6px;
+            background-color: var(--bg);
+            color: var(--accent-strong);
+            padding: 6px 8px;
             font-weight: 700;
             text-align: center;
         }
 
-        /* 電子紙高對比 Toast 提示 */
+        /* 狀態提示列 */
         .toast-box {
             position: fixed;
-            bottom: 76px;
+            bottom: 74px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 60;
-            background-color: var(--fg);
-            color: var(--bg);
-            border: 4px solid var(--border);
+            background-color: var(--accent-strong);
+            color: #FFFFFF;
+            border: 2px solid var(--border-strong);
+            border-radius: 8px;
             padding: 10px 18px;
             font-weight: 700;
             font-size: 15px;
@@ -615,17 +778,24 @@
                 設定
             </button>
 
-            <!-- 畫線註記選單 (浮動) -->
+            <!-- 畫線註記浮動選單 -->
             <div id="highlightMenu" class="highlight-menu hidden">
-                <button type="button" class="color-btn" style="background-color:#FFB6C1;" data-color="#FFB6C1" title="螢光粉紅"></button>
-                <button type="button" class="color-btn" style="background-color:#FFFF00;" data-color="#FFFF00" title="螢光黃"></button>
-                <button type="button" class="color-btn" style="background-color:#FFA500;" data-color="#FFA500" title="螢光橘"></button>
-                <button type="button" class="color-btn" style="background-color:#90EE90;" data-color="#90EE90" title="螢光綠"></button>
-                <button type="button" class="color-btn" style="background-color:#ADD8E6;" data-color="#ADD8E6" title="螢光藍"></button>
-                <button type="button" class="color-btn" style="background-color:#DDA0DD;" data-color="#DDA0DD" title="螢光紫"></button>
-                <button id="btnClearHighlight" type="button" class="eink-btn">
-                    取消畫線註記
-                </button>
+                <div class="highlight-swatches-row">
+                    <button type="button" class="color-btn" style="background-color:#FFB6C1;" data-color="#FFB6C1" title="螢光粉紅"></button>
+                    <button type="button" class="color-btn" style="background-color:#FFFF00;" data-color="#FFFF00" title="螢光黃"></button>
+                    <button type="button" class="color-btn" style="background-color:#FFA500;" data-color="#FFA500" title="螢光橘"></button>
+                    <button type="button" class="color-btn" style="background-color:#90EE90;" data-color="#90EE90" title="螢光綠"></button>
+                    <button type="button" class="color-btn" style="background-color:#ADD8E6;" data-color="#ADD8E6" title="螢光藍"></button>
+                    <button type="button" class="color-btn" style="background-color:#DDA0DD;" data-color="#DDA0DD" title="螢光紫"></button>
+                </div>
+                <div class="highlight-actions-row">
+                    <button id="btnOpenHighlightList" type="button" class="eink-btn">
+                        畫線統整清單
+                    </button>
+                    <button id="btnClearHighlight" type="button" class="eink-btn">
+                        取消畫線註記
+                    </button>
+                </div>
             </div>
         </div>
     </header>
@@ -641,6 +811,21 @@
             </div>
             <ul id="tocList" class="sidebar-list">
                 <li class="muted-text">請先匯入 EPUB 書籍</li>
+            </ul>
+        </aside>
+
+        <!-- 右側邊欄：畫線註記統整（支援依顏色篩選與點擊跳轉） -->
+        <aside id="sidebarHighlights" class="sidebar sidebar-right hidden">
+            <div class="sidebar-header">
+                <h2 class="sidebar-title">畫線註記統整</h2>
+                <button id="btnCloseHighlights" type="button" class="eink-btn">關閉</button>
+            </div>
+            <div class="sidebar-action-bar">
+                <div class="setting-label" style="margin-bottom:8px;">依顏色篩選線索／重點：</div>
+                <div id="highlightFilterBar" class="hl-filter-bar"></div>
+            </div>
+            <ul id="highlightList" class="sidebar-list">
+                <li class="muted-text">尚無畫線紀錄</li>
             </ul>
         </aside>
 
@@ -680,13 +865,12 @@
                         <option value="inherit">預設</option>
                         <option value="'Noto Serif TC', 'Source Han Serif TC', 'PMingLiU', serif">思源宋體 (Source Han Serif)</option>
                         <option value="'TW-Sung', '全字庫正宋體', 'Noto Serif TC', serif">全字庫正宋體</option>
-                        <option value="'Swei B2 Sugar', 'Noto Serif TC', serif">獅尾B2加糖宋體</option>
-                        <option value="'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif">思源黑體 (Noto Sans TC)</option>
-                        <option value="'jf-jinxuan', 'Noto Sans TC', sans-serif">金萱體系列</option>
                         <option value="'LXGW WenKai TC', 'DFKai-SB', 'KaiTi', serif">霞鶩文楷 (LXGW WenKai)</option>
                         <option value="'Iansui', 'DFKai-SB', serif">芫荽體</option>
+                        <option value="'Bpmf Iansui', 'BpmfIansui', 'ㄅ注音芫荽', 'Iansui', serif">芫荽體注音版</option>
                         <option value="'SetoFont', 'NaikaiFont', 'LXGW WenKai TC', sans-serif">瀨戶字體 / 內海字體</option>
-                        <option value="'jf open huninn', sans-serif">jf open 粉圓字型</option>
+                        <option value="'LINE Seed TW', 'LINESeedTW', 'LINE Seed JP', sans-serif">LINE Seed</option>
+                        <option value="'JasonHandwriting1', '清松手寫體1', '清松手寫體', cursive, sans-serif">清松手寫體</option>
                     </select>
                 </div>
 
@@ -723,6 +907,17 @@
                     <input type="range" id="lineHeightSlider" min="1.0" max="3.0" step="0.1" value="1.8" class="range-slider">
                 </div>
 
+                <!-- 背景花瓣淡度與自訂圖片 -->
+                <div class="setting-group">
+                    <label for="bgOpacitySlider" class="setting-label">
+                        <span>背景花瓣淡度</span>
+                        <span id="bgOpacityDisplay">16%</span>
+                    </label>
+                    <input type="range" id="bgOpacitySlider" min="0" max="40" step="2" value="16" class="range-slider">
+                    <label for="bgImageInput" class="setting-label" style="margin-top:4px;">套用自訂背景圖（可匯入下載的紫花瓣照片）</label>
+                    <input type="file" id="bgImageInput" accept="image/*" class="eink-input">
+                </div>
+
                 <!-- 深色模式與進度同步 -->
                 <div class="setting-group">
                     <button id="btnDarkMode" type="button" class="eink-btn eink-btn-full">
@@ -737,6 +932,9 @@
 
         <!-- 閱讀畫面區塊 -->
         <main class="reader-main">
+            <!-- 極淡紫花瓣白布背景層 -->
+            <div id="readerBgLayer" class="reader-bg-layer" aria-hidden="true"></div>
+
             <!-- EPUB 容器 -->
             <div id="epubViewer" class="hidden"></div>
 
@@ -789,10 +987,10 @@
         </div>
     </div>
 
-    <!-- 電子紙高對比狀態提示列 -->
+    <!-- 狀態提示列 -->
     <div id="toastMessage" class="toast-box hidden"></div>
 
-    <!-- 主程式邏輯（零頂層網路 import，確保 100% 離線啟動不報錯） -->
+    <!-- 主程式邏輯（100% 離線可啟動） -->
     <script>
     (function() {
         'use strict';
@@ -819,7 +1017,13 @@
 
         const btnToggleHighlight = document.getElementById('btnToggleHighlight');
         const highlightMenu = document.getElementById('highlightMenu');
+        const btnOpenHighlightList = document.getElementById('btnOpenHighlightList');
         const btnClearHighlight = document.getElementById('btnClearHighlight');
+
+        const sidebarHighlights = document.getElementById('sidebarHighlights');
+        const btnCloseHighlights = document.getElementById('btnCloseHighlights');
+        const highlightFilterBar = document.getElementById('highlightFilterBar');
+        const highlightList = document.getElementById('highlightList');
 
         const btnToggleBookmarks = document.getElementById('btnToggleBookmarks');
         const sidebarBookmarks = document.getElementById('sidebarBookmarks');
@@ -839,6 +1043,10 @@
         const fontSizeDisplay = document.getElementById('fontSizeDisplay');
         const lineHeightSlider = document.getElementById('lineHeightSlider');
         const lineHeightDisplay = document.getElementById('lineHeightDisplay');
+        const bgOpacitySlider = document.getElementById('bgOpacitySlider');
+        const bgOpacityDisplay = document.getElementById('bgOpacityDisplay');
+        const bgImageInput = document.getElementById('bgImageInput');
+        const readerBgLayer = document.getElementById('readerBgLayer');
         const btnDarkMode = document.getElementById('btnDarkMode');
         const btnSync = document.getElementById('btnSync');
 
@@ -851,6 +1059,16 @@
         const pageInfo = document.getElementById('pageInfo');
         const toastMessage = document.getElementById('toastMessage');
 
+        // 畫線顏色對照表（方便推理小說分類）
+        const HIGHLIGHT_COLORS = [
+            { code: '#FFB6C1', name: '粉紅' },
+            { code: '#FFFF00', name: '黃' },
+            { code: '#FFA500', name: '橘' },
+            { code: '#90EE90', name: '綠' },
+            { code: '#ADD8E6', name: '藍' },
+            { code: '#DDA0DD', name: '紫' }
+        ];
+
         // === 全域狀態 ===
         const state = {
             mode: null, // 'txt' | 'epub'
@@ -859,11 +1077,14 @@
             fontFamily: 'inherit',
             direction: 'horizontal', // 'horizontal' | 'vertical'
             isDarkMode: false,
+            bgOpacity: 16,
+            customBgDataUrl: null,
             txtContent: '',
             currentFile: 'default',
             txtPage: 0,
             txtTotalPages: 1,
             epubCfi: null,
+            activeHighlightFilter: 'all', // 'all' | color code
             bookmarksByBook: {},
             highlightsByBook: {}
         };
@@ -875,15 +1096,16 @@
         let epubLocationsFailed = false;
         let currentBookToken = 0;
         let selectedCfi = null;
+        let selectedEpubText = '';
         let epubResizeTimer = null;
         let isEpubNavigating = false;
         let epubEngineReady = false;
-        let epubEngineSource = 'loading'; // 'local' | 'cdn' | 'failed'
+        let epubEngineSource = 'loading';
 
         // 自訂字體暫存清單
-        const customFonts = []; // [{ familyName, displayName, buffer }]
+        const customFonts = [];
 
-        // Firebase 選配狀態（僅於有網路且有設定時動態啟用）
+        // Firebase 選配狀態
         let firebaseApi = null;
         let db = null;
         let currentUser = null;
@@ -900,7 +1122,7 @@
             }, duration);
         }
 
-        // === 1. 離線優先雙重腳本載入器（優先讀取本機 ./libs/，無則備援 CDN） ===
+        // === 1. 離線優先雙重腳本載入器 ===
         function loadScriptUrl(src) {
             return new Promise((resolve, reject) => {
                 const script = document.createElement('script');
@@ -959,33 +1181,55 @@
             }
         }
 
-        // 若有網路，於背景非阻塞載入雲端字體（完全不影響離線啟動）
-        function loadOptionalCloudFonts() {
-            if (!navigator.onLine) return;
-            const style = document.createElement('style');
-            style.id = 'eink-optional-cloud-fonts';
-            style.textContent = `
-                @import url('https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC&family=Noto+Sans+TC:wght@400;700&family=Noto+Serif+TC:wght@400;700&display=swap');
+        // 取得雲端字體 CSS（分開宣告，避免單一字體失敗影響其他字體）
+        function getCloudFontsCss() {
+            return `
+                @import url('https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC&family=Noto+Serif+TC:wght@400;700&display=swap');
                 @font-face {
                     font-family: 'Iansui';
                     src: url('https://cdn.jsdelivr.net/gh/ButTaiwan/iansui@master/Iansui-Regular.ttf') format('truetype');
                     font-display: swap;
                 }
                 @font-face {
-                    font-family: 'jf open huninn';
-                    src: url('https://cdn.jsdelivr.net/gh/justfont/open-huninn-font/font/jf-openhuninn-1.1/jf-openhuninn-1.1.ttf') format('truetype');
+                    font-family: 'Bpmf Iansui';
+                    src: url('https://cdn.jsdelivr.net/gh/ButTaiwan/bpmfvs@master/fonts/BpmfIansui-Regular.ttf') format('truetype');
+                    font-display: swap;
+                }
+                @font-face {
+                    font-family: 'LINE Seed TW';
+                    src: url('https://cdn.jsdelivr.net/gh/Lukas-W/font-logos@master/assets/font-logos.woff2') format('woff2');
+                    font-display: swap;
+                }
+                @font-face {
+                    font-family: 'JasonHandwriting1';
+                    src: url('https://cdn.jsdelivr.net/gh/max32002/JasonHandWritingFonts@20240409/webfont/JasonHandwriting1-Regular.woff2') format('woff2');
                     font-display: swap;
                 }
             `;
+        }
+
+        function loadOptionalCloudFonts() {
+            if (!navigator.onLine) return;
+            const style = document.createElement('style');
+            style.id = 'eink-optional-cloud-fonts';
+            style.textContent = getCloudFontsCss();
             document.head.appendChild(style);
         }
 
-        // 註冊 PWA Service Worker（僅於 http/https 環境生效，不影響 file:// 與 APK WebView）
         function registerServiceWorker() {
-            if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.protocol === 'http:')) {
-                navigator.serviceWorker.register('./sw.js').catch(() => {
-                    // 預覽環境或尚未建立 sw.js 時靜默略過
-                });
+            if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+                navigator.serviceWorker.register('./sw.js').catch(() => {});
+            }
+        }
+
+        function applyBackgroundLayerUI() {
+            if (state.customBgDataUrl) {
+                readerBgLayer.style.backgroundImage = `url("${state.customBgDataUrl}")`;
+            }
+            if (state.isDarkMode) {
+                readerBgLayer.style.opacity = '0';
+            } else {
+                readerBgLayer.style.opacity = String((state.bgOpacity || 0) / 100);
             }
         }
 
@@ -1013,9 +1257,7 @@
                 const idb = await openFontDB();
                 const tx = idb.transaction(FONT_STORE_NAME, 'readwrite');
                 tx.objectStore(FONT_STORE_NAME).put(fontEntry);
-            } catch {
-                // 忽略部分 WebView 的 IndexedDB 限制
-            }
+            } catch {}
         }
 
         async function restoreSavedFontsFromIndexedDB() {
@@ -1044,19 +1286,14 @@
                             opt.textContent = `[自訂] ${entry.displayName || entry.familyName}`;
                             fontSelect.appendChild(opt);
                         }
-                    } catch {
-                        // 略過損毀字體
-                    }
+                    } catch {}
                 }
 
-                // 若先前的設定使用到自訂字體，重新同步選單
                 if ([...fontSelect.options].some(o => o.value === state.fontFamily)) {
                     fontSelect.value = state.fontFamily;
                     applyStyles();
                 }
-            } catch {
-                // 無本機自訂字體紀錄時靜默略過
-            }
+            } catch {}
         }
 
         // === 3. 本機儲存與選配 Firebase 雲端同步 ===
@@ -1072,13 +1309,13 @@
                     fontFamily: state.fontFamily,
                     direction: state.direction,
                     isDarkMode: state.isDarkMode,
+                    bgOpacity: state.bgOpacity,
+                    customBgDataUrl: state.customBgDataUrl,
                     bookmarksByBook: state.bookmarksByBook,
                     highlightsByBook: state.highlightsByBook
                 };
                 localStorage.setItem(getLocalStorageKey(), JSON.stringify(payload));
-            } catch {
-                // 忽略儲存空間限制
-            }
+            } catch {}
         }
 
         function loadLocalSettings() {
@@ -1086,9 +1323,7 @@
                 const raw = localStorage.getItem(getLocalStorageKey());
                 if (!raw) return;
                 applySavedSettingsData(JSON.parse(raw));
-            } catch {
-                // 忽略解析錯誤
-            }
+            } catch {}
         }
 
         function applySavedSettingsData(data) {
@@ -1098,6 +1333,8 @@
             if (typeof data.fontFamily === 'string') state.fontFamily = data.fontFamily;
             if (data.direction === 'horizontal' || data.direction === 'vertical') state.direction = data.direction;
             if (typeof data.isDarkMode === 'boolean') state.isDarkMode = data.isDarkMode;
+            if (typeof data.bgOpacity === 'number') state.bgOpacity = data.bgOpacity;
+            if (typeof data.customBgDataUrl === 'string') state.customBgDataUrl = data.customBgDataUrl;
             if (data.bookmarksByBook && typeof data.bookmarksByBook === 'object') {
                 state.bookmarksByBook = data.bookmarksByBook;
             }
@@ -1109,25 +1346,30 @@
             fontSizeDisplay.textContent = `${state.fontSize}px`;
             lineHeightSlider.value = state.lineHeight;
             lineHeightDisplay.textContent = state.lineHeight.toFixed(1);
+            bgOpacitySlider.value = state.bgOpacity;
+            bgOpacityDisplay.textContent = `${state.bgOpacity}%`;
             directionSelect.value = state.direction;
+
             if ([...fontSelect.options].some(o => o.value === state.fontFamily)) {
                 fontSelect.value = state.fontFamily;
+            } else {
+                state.fontFamily = 'inherit';
+                fontSelect.value = 'inherit';
             }
 
             applyDarkModeUI();
+            applyBackgroundLayerUI();
             applyStyles();
             renderBookmarks();
+            renderHighlightSummary();
         }
 
         async function initOptionalFirebase() {
-            // 永遠先讀取本機設定，確保離線秒開
             loadLocalSettings();
-
             if (!navigator.onLine) return;
+
             const rawConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
-            if (typeof __app_id !== 'undefined' && __app_id) {
-                currentAppId = __app_id;
-            }
+            if (typeof __app_id !== 'undefined' && __app_id) currentAppId = __app_id;
             if (!rawConfig) return;
 
             try {
@@ -1156,9 +1398,7 @@
                 if (snap.exists()) {
                     applySavedSettingsData(snap.data());
                 }
-            } catch {
-                // 離線或未設定雲端時，維持純本機模式
-            }
+            } catch {}
         }
 
         async function syncToCloud() {
@@ -1173,12 +1413,10 @@
 
             try {
                 localStorage.setItem(`eink_book_${bookKey}`, JSON.stringify(progressData));
-            } catch {
-                // 忽略本機空間不足
-            }
+            } catch {}
 
             if (!navigator.onLine || !db || !currentUser || !firebaseApi) {
-                showToast('設定、書籤與閱讀進度已儲存至本機（離線模式）。');
+                showToast('設定、畫線、書籤與進度已儲存至本機（離線模式）。');
                 return;
             }
 
@@ -1190,6 +1428,7 @@
                     fontFamily: state.fontFamily,
                     direction: state.direction,
                     isDarkMode: state.isDarkMode,
+                    bgOpacity: state.bgOpacity,
                     bookmarksByBook: state.bookmarksByBook,
                     highlightsByBook: state.highlightsByBook,
                     lastBook: bookKey,
@@ -1200,7 +1439,7 @@
                 const bookDocRef = firebaseApi.doc(db, 'artifacts', currentAppId, 'users', currentUser.uid, 'books', safeBookId);
                 await firebaseApi.setDoc(bookDocRef, progressData, { merge: true });
 
-                showToast('進度、書籤與設定已同步至本機與雲端！');
+                showToast('進度、畫線、書籤與設定已同步至本機與雲端！');
             } catch {
                 showToast('雲端連線失敗，已妥善儲存於本機。');
             }
@@ -1213,9 +1452,7 @@
                     const bookDocRef = firebaseApi.doc(db, 'artifacts', currentAppId, 'users', currentUser.uid, 'books', safeBookId);
                     const snap = await firebaseApi.getDoc(bookDocRef);
                     if (snap.exists()) return snap.data();
-                } catch {
-                    // 改讀本機
-                }
+                } catch {}
             }
             try {
                 const raw = localStorage.getItem(`eink_book_${bookName}`);
@@ -1227,7 +1464,7 @@
 
         // === 側邊欄與浮動選單開關 ===
         function closeAllPanels(exceptId = null) {
-            [sidebarTOC, sidebarBookmarks, sidebarSettings, highlightMenu, cloudImportMenu].forEach(panel => {
+            [sidebarTOC, sidebarHighlights, sidebarBookmarks, sidebarSettings, highlightMenu, cloudImportMenu].forEach(panel => {
                 if (panel && panel.id !== exceptId) {
                     panel.classList.add('hidden');
                 }
@@ -1240,6 +1477,13 @@
             sidebarTOC.classList.toggle('hidden', !willOpen);
         });
         btnCloseTOC.addEventListener('click', () => sidebarTOC.classList.add('hidden'));
+
+        btnOpenHighlightList.addEventListener('click', () => {
+            closeAllPanels('sidebarHighlights');
+            sidebarHighlights.classList.remove('hidden');
+            renderHighlightSummary();
+        });
+        btnCloseHighlights.addEventListener('click', () => sidebarHighlights.classList.add('hidden'));
 
         btnToggleBookmarks.addEventListener('click', () => {
             const willOpen = sidebarBookmarks.classList.contains('hidden');
@@ -1408,9 +1652,7 @@
                     if (buffer && buffer.byteLength > 0 && !looksLikeHtmlPage(buffer)) {
                         return buffer;
                     }
-                } catch {
-                    // 嘗試下一個備援
-                }
+                } catch {}
             }
             return null;
         }
@@ -1454,9 +1696,7 @@
                     if (lastSeg && lastSeg.length < 100 && lastSeg !== 'view') {
                         fileName = lastSeg;
                     }
-                } catch {
-                    // 維持預設檔名
-                }
+                } catch {}
 
                 if (isZipOrEpubBuffer(buffer) || rawUrl.toLowerCase().includes('.epub')) {
                     if (!fileName.toLowerCase().endsWith('.epub')) fileName += '.epub';
@@ -1488,6 +1728,7 @@
             epubLocations = [];
             epubLocationsFailed = false;
             selectedCfi = null;
+            selectedEpubText = '';
             isEpubNavigating = false;
             epubViewer.innerHTML = '';
         }
@@ -1533,9 +1774,11 @@
 
             requestAnimationFrame(() => {
                 recalculateTxtPagination(true);
+                restoreTxtHighlightsInDom();
             });
 
             renderBookmarks();
+            renderHighlightSummary();
             showToast(`已載入：${fileName}`);
         }
 
@@ -1577,6 +1820,36 @@
             }
 
             pageInfo.textContent = `目前頁數 ${clamped + 1} / 總頁數 ${state.txtTotalPages}`;
+        }
+
+        // 還原先前儲存的 TXT 畫線（依文字內容重新標記）
+        function restoreTxtHighlightsInDom() {
+            if (state.mode !== 'txt') return;
+            const list = getBookHighlights().filter(h => h && h.id && h.type === 'txt' && h.text);
+            if (list.length === 0) return;
+
+            list.forEach(item => {
+                if (txtContent.querySelector(`mark[data-hl-id="${item.id}"]`)) return;
+                const walker = document.createTreeWalker(txtContent, NodeFilter.SHOW_TEXT, null);
+                let node;
+                while ((node = walker.nextNode())) {
+                    if (node.parentElement && node.parentElement.tagName === 'MARK') continue;
+                    const idx = node.nodeValue.indexOf(item.text);
+                    if (idx !== -1) {
+                        const range = document.createRange();
+                        range.setStart(node, idx);
+                        range.setEnd(node, idx + item.text.length);
+                        const mark = document.createElement('mark');
+                        mark.className = 'highlight-bg';
+                        mark.dataset.hlId = item.id;
+                        mark.style.backgroundColor = item.color || '#FFFF00';
+                        try {
+                            range.surroundContents(mark);
+                        } catch {}
+                        break;
+                    }
+                }
+            });
         }
 
         // === EPUB 引擎 ===
@@ -1628,6 +1901,7 @@
 
                 initEpubRendition(startCfi);
                 renderBookmarks();
+                renderHighlightSummary();
                 showToast(`已載入：${fileName}`);
             } catch {
                 if (token !== currentBookToken) return;
@@ -1680,8 +1954,15 @@
                 updateEpubPagination(location);
             });
 
-            rendition.on('selected', (cfiRange) => {
+            rendition.on('selected', (cfiRange, contents) => {
                 selectedCfi = cfiRange;
+                try {
+                    selectedEpubText = contents && contents.window
+                        ? contents.window.getSelection().toString().replace(/\s+/g, ' ').trim()
+                        : '';
+                } catch {
+                    selectedEpubText = '';
+                }
             });
 
             const displayPromise = startCfi
@@ -1820,21 +2101,11 @@
             const docObj = contents.document;
             const head = docObj.head || docObj.getElementsByTagName('head')[0];
 
-            // 1. 僅於有網路時載入雲端字體（離線不發出無效請求）
+            // 1. 有網路時注入雲端字體
             if (navigator.onLine && head && !docObj.getElementById('eink-cloud-fonts')) {
                 const fontStyle = docObj.createElement('style');
                 fontStyle.id = 'eink-cloud-fonts';
-                fontStyle.textContent = `
-                    @import url('https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC&family=Noto+Sans+TC:wght@400;700&family=Noto+Serif+TC:wght@400;700&display=swap');
-                    @font-face {
-                        font-family: 'Iansui';
-                        src: url('https://cdn.jsdelivr.net/gh/ButTaiwan/iansui@master/Iansui-Regular.ttf') format('truetype');
-                    }
-                    @font-face {
-                        font-family: 'jf open huninn';
-                        src: url('https://cdn.jsdelivr.net/gh/justfont/open-huninn-font/font/jf-openhuninn-1.1/jf-openhuninn-1.1.ttf') format('truetype');
-                    }
-                `;
+                fontStyle.textContent = getCloudFontsCss();
                 head.appendChild(fontStyle);
             }
 
@@ -1854,12 +2125,57 @@
             }
 
             // 3. 強制套用字體、大小、行距、深淺色與直橫排
-            const bgColor = state.isDarkMode ? '#000000' : '#ffffff';
-            const textColor = state.isDarkMode ? '#ffffff' : '#000000';
-            const writingMode = state.direction === 'vertical' ? 'vertical-rl' : 'horizontal-tb';
+            const bgColor = state.isDarkMode ? '#0E0F17' : 'transparent';
+            const textColor = state.isDarkMode ? '#F2F3F9' : '#2B2D40';
+            const isVertical = state.direction === 'vertical';
+            const writingMode = isVertical ? 'vertical-rl' : 'horizontal-tb';
             const fontFamilyRule = state.fontFamily && state.fontFamily !== 'inherit'
                 ? `font-family: ${state.fontFamily} !important;`
                 : '';
+
+            // 直排專用修正：解除 epub.js 橫排多欄寬度對垂直軸的干擾，並重置上下留白讓文字緊貼頂端對齊
+            const verticalFixCss = isVertical ? `
+                html {
+                    column-width: auto !important;
+                    -webkit-column-width: auto !important;
+                    column-count: auto !important;
+                    -webkit-column-count: auto !important;
+                    columns: auto !important;
+                    column-gap: 0 !important;
+                    height: 100vh !important;
+                    max-height: 100vh !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    box-sizing: border-box !important;
+                    vertical-align: top !important;
+                }
+                body {
+                    column-width: auto !important;
+                    -webkit-column-width: auto !important;
+                    column-count: auto !important;
+                    -webkit-column-count: auto !important;
+                    columns: auto !important;
+                    height: 100% !important;
+                    max-height: 100% !important;
+                    margin: 0 !important;
+                    padding: 12px 20px !important;
+                    box-sizing: border-box !important;
+                    vertical-align: top !important;
+                    text-align: start !important;
+                    text-orientation: mixed !important;
+                }
+                section, article, div, p, blockquote, ul, ol, li, h1, h2, h3, h4, h5, h6 {
+                    margin-top: 0 !important;
+                    margin-bottom: 0 !important;
+                    padding-top: 0 !important;
+                    padding-bottom: 0 !important;
+                    vertical-align: top !important;
+                }
+                p, blockquote, h1, h2, h3, h4, h5, h6 {
+                    margin-left: 0.6em !important;
+                    margin-right: 0 !important;
+                }
+            ` : '';
 
             let overrideStyle = docObj.getElementById('eink-epub-override');
             if (!overrideStyle && head) {
@@ -1887,6 +2203,7 @@
                     p, div, span, li, blockquote {
                         font-size: ${state.fontSize}px !important;
                     }
+                    ${verticalFixCss}
                 `;
             }
         }
@@ -1900,14 +2217,15 @@
                 htmlEl.classList.remove('dark');
                 htmlEl.classList.add('light');
             }
+            applyBackgroundLayerUI();
         }
 
         function applyStyles() {
             txtContent.style.fontSize = `${state.fontSize}px`;
             txtContent.style.lineHeight = `${state.lineHeight}`;
             txtContent.style.fontFamily = state.fontFamily;
-            txtContent.style.color = state.isDarkMode ? '#ffffff' : '#000000';
-            txtContent.style.backgroundColor = state.isDarkMode ? '#000000' : '#ffffff';
+            txtContent.style.color = state.isDarkMode ? '#F2F3F9' : '#2B2D40';
+            txtContent.style.backgroundColor = 'transparent';
 
             if (state.mode === 'txt') {
                 requestAnimationFrame(() => recalculateTxtPagination(true));
@@ -1989,6 +2307,27 @@
             saveLocalSettings();
         });
 
+        bgOpacitySlider.addEventListener('input', (e) => {
+            state.bgOpacity = parseInt(e.target.value, 10);
+            bgOpacityDisplay.textContent = `${state.bgOpacity}%`;
+            applyBackgroundLayerUI();
+            saveLocalSettings();
+        });
+
+        bgImageInput.addEventListener('change', (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                state.customBgDataUrl = reader.result;
+                applyBackgroundLayerUI();
+                saveLocalSettings();
+                showToast('已套用自訂淡色背景圖片！');
+            };
+            reader.readAsDataURL(file);
+            bgImageInput.value = '';
+        });
+
         btnDarkMode.addEventListener('click', () => {
             state.isDarkMode = !state.isDarkMode;
             applyDarkModeUI();
@@ -2038,29 +2377,177 @@
             else if (state.mode === 'epub') scheduleEpubResize();
         });
 
-        // === 畫線註記與取消畫線 ===
+        // === 畫線註記、統整清單與依顏色篩選跳轉 ===
         function getBookHighlights() {
             const key = state.currentFile || 'default';
-            if (!state.highlightsByBook[key]) state.highlightsByBook[key] = [];
+            if (!Array.isArray(state.highlightsByBook[key])) state.highlightsByBook[key] = [];
             return state.highlightsByBook[key];
+        }
+
+        function getColorName(colorCode) {
+            const found = HIGHLIGHT_COLORS.find(c => c.code.toLowerCase() === String(colorCode || '').toLowerCase());
+            return found ? found.name : '標記';
         }
 
         function restoreEpubHighlights() {
             if (state.mode !== 'epub' || !rendition) return;
-            getBookHighlights().forEach(item => {
-                try {
-                    rendition.annotations.highlight(
-                        item.cfi,
-                        {},
-                        () => { selectedCfi = item.cfi; },
-                        'eink-hl',
-                        { fill: item.color, 'fill-opacity': '0.45' }
-                    );
-                } catch {}
+            getBookHighlights()
+                .filter(item => item && item.cfi)
+                .forEach(item => {
+                    try {
+                        rendition.annotations.highlight(
+                            item.cfi,
+                            {},
+                            () => { selectedCfi = item.cfi; },
+                            'eink-hl',
+                            { fill: item.color || '#FFFF00', 'fill-opacity': '0.45' }
+                        );
+                    } catch {}
+                });
+        }
+
+        function renderHighlightSummary() {
+            const allItems = getBookHighlights().filter(Boolean);
+
+            // 1. 渲染顏色篩選按鈕列
+            highlightFilterBar.innerHTML = '';
+
+            const allBtn = document.createElement('button');
+            allBtn.type = 'button';
+            allBtn.className = `hl-filter-chip ${state.activeHighlightFilter === 'all' ? 'active-chip' : ''}`;
+            allBtn.textContent = `全部 (${allItems.length})`;
+            allBtn.addEventListener('click', () => {
+                state.activeHighlightFilter = 'all';
+                renderHighlightSummary();
+            });
+            highlightFilterBar.appendChild(allBtn);
+
+            HIGHLIGHT_COLORS.forEach(c => {
+                const count = allItems.filter(item => String(item.color || '').toLowerCase() === c.code.toLowerCase()).length;
+                const chip = document.createElement('button');
+                chip.type = 'button';
+                chip.className = `hl-filter-chip ${String(state.activeHighlightFilter).toLowerCase() === c.code.toLowerCase() ? 'active-chip' : ''}`;
+                chip.innerHTML = `<span class="hl-dot" style="background-color:${c.code};"></span><span>${c.name} (${count})</span>`;
+                chip.addEventListener('click', () => {
+                    state.activeHighlightFilter = c.code;
+                    renderHighlightSummary();
+                });
+                highlightFilterBar.appendChild(chip);
+            });
+
+            // 2. 篩選並渲染畫線文字卡片
+            const filtered = state.activeHighlightFilter === 'all'
+                ? allItems
+                : allItems.filter(item => String(item.color || '').toLowerCase() === String(state.activeHighlightFilter).toLowerCase());
+
+            highlightList.innerHTML = '';
+
+            if (!state.mode) {
+                highlightList.innerHTML = '<li class="muted-text">請先匯入書籍後再檢視畫線統整</li>';
+                return;
+            }
+
+            if (filtered.length === 0) {
+                const colorLabel = state.activeHighlightFilter === 'all' ? '' : `「${getColorName(state.activeHighlightFilter)}色」`;
+                highlightList.innerHTML = `<li class="muted-text">目前尚無${colorLabel}畫線紀錄</li>`;
+                return;
+            }
+
+            filtered.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'hl-card';
+                li.style.borderLeftColor = item.color || '#FFFF00';
+
+                const meta = document.createElement('div');
+                meta.className = 'hl-card-meta';
+
+                const tagSpan = document.createElement('span');
+                const locLabel = item.pageLabel || (item.type === 'txt' ? `第 ${(item.page || 0) + 1} 頁` : 'EPUB 標記');
+                tagSpan.textContent = `${getColorName(item.color)}色 ｜ ${locLabel}`;
+
+                const delBtn = document.createElement('button');
+                delBtn.type = 'button';
+                delBtn.className = 'bookmark-del-btn';
+                delBtn.textContent = '刪除';
+                delBtn.addEventListener('click', () => removeHighlightById(item));
+
+                meta.appendChild(tagSpan);
+                meta.appendChild(delBtn);
+
+                const jumpBtn = document.createElement('button');
+                jumpBtn.type = 'button';
+                jumpBtn.className = 'hl-card-text-btn';
+                jumpBtn.textContent = item.text || '（點擊跳轉至該畫線位置）';
+                jumpBtn.addEventListener('click', () => jumpToHighlight(item));
+
+                li.appendChild(meta);
+                li.appendChild(jumpBtn);
+                highlightList.appendChild(li);
             });
         }
 
-        function applyHighlight(color) {
+        function jumpToHighlight(item) {
+            if (!item) return;
+
+            if ((item.type === 'epub' || item.cfi) && state.mode === 'epub' && rendition && item.cfi) {
+                rendition.display(item.cfi).then(() => {
+                    updateEpubPagination();
+                    sidebarHighlights.classList.add('hidden');
+                    showToast('已跳轉至該畫線頁面。');
+                }).catch(() => {
+                    showToast('無法跳轉至此畫線位置。');
+                });
+                return;
+            }
+
+            if (state.mode === 'txt') {
+                const markEl = item.id ? txtContent.querySelector(`mark[data-hl-id="${item.id}"]`) : null;
+                if (markEl) {
+                    const viewerWidth = Math.floor(txtViewer.clientWidth) || window.innerWidth;
+                    const viewerRect = txtViewer.getBoundingClientRect();
+                    const markRect = markEl.getBoundingClientRect();
+                    if (state.direction === 'vertical') {
+                        const offsetFromRight = (viewerRect.right - markRect.right) - txtViewer.scrollLeft;
+                        const targetPage = Math.max(0, Math.floor(offsetFromRight / viewerWidth));
+                        goToTxtPage(targetPage);
+                    } else {
+                        const offsetFromLeft = (markRect.left - viewerRect.left) + txtViewer.scrollLeft;
+                        const targetPage = Math.max(0, Math.floor(offsetFromLeft / viewerWidth));
+                        goToTxtPage(targetPage);
+                    }
+                } else if (typeof item.page === 'number') {
+                    goToTxtPage(item.page);
+                }
+                sidebarHighlights.classList.add('hidden');
+                showToast('已跳轉至該畫線頁面。');
+            }
+        }
+
+        function removeHighlightById(item) {
+            const list = getBookHighlights();
+            if (item.cfi && state.mode === 'epub' && rendition) {
+                try { rendition.annotations.remove(item.cfi, 'highlight'); } catch {}
+            }
+            if (item.id && state.mode === 'txt') {
+                const markEl = txtContent.querySelector(`mark[data-hl-id="${item.id}"]`);
+                if (markEl) {
+                    const parent = markEl.parentNode;
+                    while (markEl.firstChild) parent.insertBefore(markEl.firstChild, markEl);
+                    parent.removeChild(markEl);
+                }
+            }
+            state.highlightsByBook[state.currentFile] = list.filter(h => {
+                if (!h) return false;
+                if (item.id && h.id) return h.id !== item.id;
+                if (item.cfi && h.cfi) return h.cfi !== item.cfi;
+                return h !== item;
+            });
+            saveLocalSettings();
+            renderHighlightSummary();
+            showToast('已刪除該畫線註記。');
+        }
+
+        async function applyHighlight(color) {
             if (state.mode === 'epub' && rendition) {
                 if (!selectedCfi) {
                     showToast('請先在內文中反白選取文字，再選擇螢光筆顏色。');
@@ -2068,6 +2555,15 @@
                 }
                 try {
                     const cfi = selectedCfi;
+                    let textSnippet = selectedEpubText;
+                    if (!textSnippet && book && typeof book.getRange === 'function') {
+                        try {
+                            const r = await book.getRange(cfi);
+                            if (r) textSnippet = r.toString().replace(/\s+/g, ' ').trim();
+                        } catch {}
+                    }
+                    if (!textSnippet) textSnippet = '（EPUB 畫線片段）';
+
                     rendition.annotations.remove(cfi, 'highlight');
                     rendition.annotations.highlight(
                         cfi,
@@ -2076,12 +2572,23 @@
                         'eink-hl',
                         { fill: color, 'fill-opacity': '0.45' }
                     );
-                    const list = getBookHighlights().filter(h => h.cfi !== cfi);
-                    list.push({ cfi, color });
+
+                    const newRecord = {
+                        id: `hl_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                        type: 'epub',
+                        cfi,
+                        color,
+                        text: textSnippet.slice(0, 120),
+                        pageLabel: pageInfo.textContent.replace(/目前頁數\s*/, '第 ').replace(/\s*\/\s*總頁數.*/, ' 頁')
+                    };
+
+                    const list = getBookHighlights().filter(h => h && h.cfi !== cfi);
+                    list.unshift(newRecord);
                     state.highlightsByBook[state.currentFile] = list;
                     saveLocalSettings();
+                    renderHighlightSummary();
                     highlightMenu.classList.add('hidden');
-                    showToast('已加入畫線註記。');
+                    showToast(`已加入${getColorName(color)}色畫線註記。`);
                 } catch {
                     showToast('畫線失敗，請重新選取文字。');
                 }
@@ -2095,16 +2602,32 @@
             }
 
             try {
+                const textSnippet = sel.toString().replace(/\s+/g, ' ').trim();
                 const range = sel.getRangeAt(0);
+                const hlId = `hl_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
                 const mark = document.createElement('mark');
                 mark.className = 'highlight-bg';
+                mark.dataset.hlId = hlId;
                 mark.style.backgroundColor = color;
                 const fragment = range.extractContents();
                 mark.appendChild(fragment);
                 range.insertNode(mark);
                 sel.removeAllRanges();
+
+                const list = getBookHighlights();
+                list.unshift({
+                    id: hlId,
+                    type: 'txt',
+                    color,
+                    text: textSnippet.slice(0, 120) || '（TXT 畫線片段）',
+                    page: state.txtPage,
+                    pageLabel: `第 ${state.txtPage + 1} 頁`
+                });
+                state.highlightsByBook[state.currentFile] = list;
+                saveLocalSettings();
+                renderHighlightSummary();
                 highlightMenu.classList.add('hidden');
-                showToast('已加入畫線註記。');
+                showToast(`已加入${getColorName(color)}色畫線註記。`);
             } catch {
                 showToast('無法跨區段畫線，請選取同一段落內的文字。');
             }
@@ -2113,16 +2636,17 @@
         function clearHighlight() {
             if (state.mode === 'epub' && rendition) {
                 const list = getBookHighlights();
-                const targetCfi = selectedCfi || (list.length > 0 ? list[list.length - 1].cfi : null);
+                const targetCfi = selectedCfi || (list.length > 0 && list[0] ? list[0].cfi : null);
                 if (!targetCfi) {
                     showToast('請先點擊或選取要取消的畫線區域。');
                     return;
                 }
                 try {
                     rendition.annotations.remove(targetCfi, 'highlight');
-                    state.highlightsByBook[state.currentFile] = list.filter(h => h.cfi !== targetCfi);
+                    state.highlightsByBook[state.currentFile] = list.filter(h => h && h.cfi !== targetCfi);
                     selectedCfi = null;
                     saveLocalSettings();
+                    renderHighlightSummary();
                     highlightMenu.classList.add('hidden');
                     showToast('已取消畫線註記。');
                 } catch {
@@ -2132,15 +2656,15 @@
             }
 
             const sel = window.getSelection();
-            let removed = false;
+            let removedIds = [];
             if (sel && !sel.isCollapsed) {
                 const range = sel.getRangeAt(0);
                 txtContent.querySelectorAll('mark.highlight-bg').forEach(mark => {
                     if (range.intersectsNode(mark)) {
+                        if (mark.dataset.hlId) removedIds.push(mark.dataset.hlId);
                         const parent = mark.parentNode;
                         while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
                         parent.removeChild(mark);
-                        removed = true;
                     }
                 });
                 sel.removeAllRanges();
@@ -2149,15 +2673,21 @@
                     ? sel.anchorNode.closest('mark.highlight-bg')
                     : (sel.anchorNode.parentElement ? sel.anchorNode.parentElement.closest('mark.highlight-bg') : null);
                 if (parentMark) {
+                    if (parentMark.dataset.hlId) removedIds.push(parentMark.dataset.hlId);
                     const parent = parentMark.parentNode;
                     while (parentMark.firstChild) parent.insertBefore(parentMark.firstChild, parentMark);
                     parent.removeChild(parentMark);
-                    removed = true;
                 }
             }
 
+            if (removedIds.length > 0) {
+                state.highlightsByBook[state.currentFile] = getBookHighlights().filter(h => h && !removedIds.includes(h.id));
+                saveLocalSettings();
+                renderHighlightSummary();
+            }
+
             highlightMenu.classList.add('hidden');
-            showToast(removed ? '已取消畫線註記。' : '請先選取或點擊已畫線的文字區域。');
+            showToast(removedIds.length > 0 ? '已取消畫線註記。' : '請先選取或點擊已畫線的文字區域。');
         }
 
         document.querySelectorAll('.color-btn').forEach(btn => {
@@ -2168,7 +2698,7 @@
         // === 書籤功能 ===
         function getBookBookmarks() {
             const key = state.currentFile || 'default';
-            if (!state.bookmarksByBook[key]) state.bookmarksByBook[key] = [];
+            if (!Array.isArray(state.bookmarksByBook[key])) state.bookmarksByBook[key] = [];
             return state.bookmarksByBook[key];
         }
 
@@ -2203,7 +2733,7 @@
         }
 
         function renderBookmarks() {
-            const list = getBookBookmarks();
+            const list = getBookBookmarks().filter(Boolean);
             bookmarkList.innerHTML = '';
             if (!list || list.length === 0) {
                 bookmarkList.innerHTML = '<li class="muted-text">尚無書籤</li>';
@@ -2237,7 +2767,7 @@
                 delBtn.className = 'bookmark-del-btn';
                 delBtn.textContent = '刪除';
                 delBtn.addEventListener('click', () => {
-                    state.bookmarksByBook[state.currentFile] = getBookBookmarks().filter(item => item.id !== bm.id);
+                    state.bookmarksByBook[state.currentFile] = getBookBookmarks().filter(item => item && item.id !== bm.id);
                     saveLocalSettings();
                     renderBookmarks();
                 });
