@@ -535,6 +535,11 @@
             background-color: transparent;
         }
 
+        /* 禁止 EPUB 容器在直排模式下產生垂直捲動 */
+        #epubViewer .epub-container {
+            overflow-y: hidden !important;
+        }
+
         /* TXT 單頁分頁容器 */
         #txtViewer {
             scroll-behavior: auto;
@@ -551,6 +556,8 @@
             line-height: 1.8;
             font-family: inherit;
             background-color: transparent;
+            user-select: text;
+            -webkit-user-select: text;
         }
 
         /* TXT 直排模式（由右至左） */
@@ -735,9 +742,10 @@
     <!-- 頂部工具列 -->
     <header class="app-header">
         <div class="header-group">
+            <!-- 移除 accept 限制，避免 Android 系統檔案選擇器將 .txt / .epub 反灰無法點選 -->
             <label class="eink-btn">
                 匯入書籍(EPUB/TXT)
-                <input type="file" id="fileInput" accept=".epub,.txt" class="hidden">
+                <input type="file" id="fileInput" class="hidden">
             </label>
 
             <div class="dropdown-anchor">
@@ -773,8 +781,12 @@
                 <span>書籤</span>
             </button>
 
+            <button id="btnToggleFonts" type="button" class="eink-btn">
+                字體
+            </button>
+
             <button id="btnToggleSettings" type="button" class="eink-btn">
-                設定
+                閱讀設定
             </button>
 
             <!-- 畫線註記浮動選單 -->
@@ -844,18 +856,13 @@
             </ul>
         </aside>
 
-        <!-- 右側邊欄：設定 -->
-        <aside id="sidebarSettings" class="sidebar sidebar-right hidden">
+        <!-- 右側邊欄：字體設定 -->
+        <aside id="sidebarFonts" class="sidebar sidebar-right hidden">
             <div class="sidebar-header">
-                <h2 class="sidebar-title">閱讀設定</h2>
-                <button id="btnCloseSettings" type="button" class="eink-btn">關閉</button>
+                <h2 class="sidebar-title">字體設定</h2>
+                <button id="btnCloseFonts" type="button" class="eink-btn">關閉</button>
             </div>
             <div class="sidebar-content">
-
-                <!-- 離線引擎狀態提示 -->
-                <div id="engineStatusBadge" class="offline-badge">
-                    正在檢查離線閱讀引擎...
-                </div>
 
                 <!-- 系統字體設定 -->
                 <div class="setting-group">
@@ -873,19 +880,10 @@
                     </select>
                 </div>
 
-                <!-- 匯入自訂字體 (支援離線永久儲存) -->
+                <!-- 匯入自訂字體 (移除 accept 避免 Android 反灰無法選取 .ttf/.ttc) -->
                 <div class="setting-group">
                     <label for="fontInput" class="setting-label">匯入自訂字體 (TTF/TTC，自動離線保存)</label>
-                    <input type="file" id="fontInput" accept=".ttf,.ttc" class="eink-input">
-                </div>
-
-                <!-- 閱讀方向設定 -->
-                <div class="setting-group">
-                    <label for="directionSelect" class="setting-label">閱讀方向</label>
-                    <select id="directionSelect" class="eink-select">
-                        <option value="horizontal">橫排 (左至右)</option>
-                        <option value="vertical">直排 (右至左)</option>
-                    </select>
+                    <input type="file" id="fontInput" class="eink-input">
                 </div>
 
                 <!-- 字體大小 -->
@@ -904,6 +902,64 @@
                         <span id="lineHeightDisplay">1.8</span>
                     </label>
                     <input type="range" id="lineHeightSlider" min="1.0" max="3.0" step="0.1" value="1.8" class="range-slider">
+                </div>
+
+                <!-- 字距 -->
+                <div class="setting-group">
+                    <label for="letterSpacingSlider" class="setting-label">
+                        <span>字距</span>
+                        <span id="letterSpacingDisplay">0px</span>
+                    </label>
+                    <input type="range" id="letterSpacingSlider" min="0" max="12" step="0.5" value="0" class="range-slider">
+                </div>
+
+            </div>
+        </aside>
+
+        <!-- 右側邊欄：閱讀設定 -->
+        <aside id="sidebarSettings" class="sidebar sidebar-right hidden">
+            <div class="sidebar-header">
+                <h2 class="sidebar-title">閱讀設定</h2>
+                <button id="btnCloseSettings" type="button" class="eink-btn">關閉</button>
+            </div>
+            <div class="sidebar-content">
+
+                <!-- 離線引擎狀態提示 -->
+                <div id="engineStatusBadge" class="offline-badge">
+                    正在檢查離線閱讀引擎...
+                </div>
+
+                <!-- 閱讀方向設定 -->
+                <div class="setting-group">
+                    <label for="directionSelect" class="setting-label">閱讀方向</label>
+                    <select id="directionSelect" class="eink-select">
+                        <option value="horizontal">橫排 (左至右)</option>
+                        <option value="vertical">直排 (右至左)</option>
+                    </select>
+                </div>
+
+                <!-- TXT 文字編碼（解決亂碼問題，支援自動偵測與即時重解碼） -->
+                <div class="setting-group">
+                    <label for="txtEncodingSelect" class="setting-label">TXT 文字編碼（若亂碼可手動切換）</label>
+                    <select id="txtEncodingSelect" class="eink-select">
+                        <option value="auto">自動偵測（推薦）</option>
+                        <option value="utf-8">UTF-8</option>
+                        <option value="big5">Big5（繁體中文）</option>
+                        <option value="gb18030">GB18030 / GBK（簡體中文）</option>
+                        <option value="utf-16le">UTF-16LE（Windows Unicode）</option>
+                        <option value="utf-16be">UTF-16BE</option>
+                        <option value="shift_jis">Shift_JIS（日文）</option>
+                    </select>
+                </div>
+
+                <!-- 簡繁中文轉換（支援 EPUB / TXT 即時切換，內建離線字典＋OpenCC 進階詞彙轉換） -->
+                <div class="setting-group">
+                    <label for="zhConvertSelect" class="setting-label">簡繁中文轉換</label>
+                    <select id="zhConvertSelect" class="eink-select">
+                        <option value="none">原文顯示（不轉換）</option>
+                        <option value="s2t">簡體轉繁體</option>
+                        <option value="t2s">繁體轉簡體</option>
+                    </select>
                 </div>
 
                 <!-- 背景花瓣淡度與自訂圖片 -->
@@ -989,7 +1045,7 @@
     <!-- 狀態提示列 -->
     <div id="toastMessage" class="toast-box hidden"></div>
 
-    <!-- 主程式邏輯（100% 離線可啟動 + 30MB+ 大型 EPUB 極速按需解壓引擎） -->
+    <!-- 主程式邏輯（100% 離線可啟動 + 30MB+ 大型 EPUB 極速按需解壓 + 智慧 TXT 中文編碼辨識） -->
     <script>
     (function() {
         'use strict';
@@ -1030,6 +1086,10 @@
         const btnAddBookmark = document.getElementById('btnAddBookmark');
         const bookmarkList = document.getElementById('bookmarkList');
 
+        const btnToggleFonts = document.getElementById('btnToggleFonts');
+        const sidebarFonts = document.getElementById('sidebarFonts');
+        const btnCloseFonts = document.getElementById('btnCloseFonts');
+
         const btnToggleSettings = document.getElementById('btnToggleSettings');
         const sidebarSettings = document.getElementById('sidebarSettings');
         const btnCloseSettings = document.getElementById('btnCloseSettings');
@@ -1038,10 +1098,14 @@
         const fontSelect = document.getElementById('fontSelect');
         const fontInput = document.getElementById('fontInput');
         const directionSelect = document.getElementById('directionSelect');
+        const txtEncodingSelect = document.getElementById('txtEncodingSelect');
+        const zhConvertSelect = document.getElementById('zhConvertSelect');
         const fontSizeSlider = document.getElementById('fontSizeSlider');
         const fontSizeDisplay = document.getElementById('fontSizeDisplay');
         const lineHeightSlider = document.getElementById('lineHeightSlider');
         const lineHeightDisplay = document.getElementById('lineHeightDisplay');
+        const letterSpacingSlider = document.getElementById('letterSpacingSlider');
+        const letterSpacingDisplay = document.getElementById('letterSpacingDisplay');
         const bgOpacitySlider = document.getElementById('bgOpacitySlider');
         const bgOpacityDisplay = document.getElementById('bgOpacityDisplay');
         const bgImageInput = document.getElementById('bgImageInput');
@@ -1073,11 +1137,15 @@
             mode: null, // 'txt' | 'epub'
             fontSize: 24,
             lineHeight: 1.8,
+            letterSpacing: 0,
             fontFamily: 'inherit',
             direction: 'horizontal', // 'horizontal' | 'vertical'
+            txtEncoding: 'auto', // 'auto' | 'utf-8' | 'big5' | 'gb18030' | 'utf-16le' | 'utf-16be' | 'shift_jis'
+            zhConvert: 'none', // 'none' | 's2t' | 't2s'
             isDarkMode: false,
             bgOpacity: 16,
             customBgDataUrl: null,
+            rawTxtContent: '',
             txtContent: '',
             currentFile: 'default',
             txtPage: 0,
@@ -1087,6 +1155,9 @@
             bookmarksByBook: {},
             highlightsByBook: {}
         };
+
+        // 保存目前 TXT 的原始二進位資料，讓使用者可隨時在設定切換編碼立即重解
+        let currentTxtBuffer = null;
 
         // EPUB 執行階段狀態
         let book = null;
@@ -1098,6 +1169,8 @@
         let currentBookToken = 0;
         let selectedCfi = null;
         let selectedEpubText = '';
+        let cachedTxtRange = null;
+        let cachedTxtText = '';
         let epubResizeTimer = null;
         let isEpubNavigating = false;
         let epubEngineReady = false;
@@ -1115,6 +1188,227 @@
         // 自訂字體暫存清單（改用 Blob URL 避免重複複製巨大 ArrayBuffer）
         const customFonts = [];
 
+        // === 簡繁中文轉換雙引擎（內建離線高頻字庫 + 選配 OpenCC 詞彙級精準轉換） ===
+        let openccS2T = null;
+        let openccT2S = null;
+        const epubNodeOrigText = new WeakMap();
+
+        // 成對編排（每兩字為一組：前簡後繁），確保 100% 對應不偏移
+        const BUILTIN_ST_PAIRS =
+            '爱愛碍礙罢罷坝壩办辦帮幫宝寶报報备備贝貝笔筆毕畢边邊变變标標宾賓补補布佈' +
+            '才纔参參仓倉层層产產长長尝嘗偿償厂廠畅暢车車彻徹尘塵衬襯称稱惩懲迟遲齿齒' +
+            '冲衝虫蟲丑醜筹籌储儲处處触觸传傳创創辞辭词詞从從聪聰丛叢错錯达達带帶担擔' +
+            '单單胆膽当當党黨档檔导導岛島灯燈邓鄧敌敵递遞点點电電垫墊淀澱调調叠疊钉釘' +
+            '顶頂订訂东東动動冻凍栋棟斗鬥独獨读讀赌賭断斷锻鍛队隊对對吨噸顿頓夺奪堕墮' +
+            '鹅鵝额額恶惡饿餓儿兒尔爾发發罚罰阀閥范範贩販飞飛费費纷紛坟墳奋奮愤憤粪糞' +
+            '丰豐风風疯瘋锋鋒凤鳳肤膚辐輻抚撫辅輔复複负負妇婦缚縛该該盖蓋干幹赶趕秆稈' +
+            '刚剛岗崗纲綱钢鋼阁閣个個给給龚龔宫宮贡貢沟溝构構购購够夠顾顧刮颳关關观觀' +
+            '馆館惯貫广廣归歸龟龜规規闺閨轨軌柜櫃贵貴滚滾国國过過骇駭韩韓汉漢号號阂閡' +
+            '鹤鶴贺賀黑黑轰轟红紅鸿鴻壶壺护護沪滬户戶华華划劃画畫话話怀懷坏壞欢歡环環' +
+            '还還缓緩换換唤喚焕煥痪瘓黄黃谎謊挥揮辉輝毁毀汇匯会會讳諱绘繪贿賄荤葷浑渾' +
+            '伙夥获獲货貨祸禍击擊机機鸡雞积積极極辑輯级級挤擠几幾剂劑济濟计計记記际際' +
+            '继繼纪紀夹夾荚莢颊頰贾賈钾鉀价價驾駕架架歼殲监監坚堅间間艰艱茧繭检檢碱鹼' +
+            '拣揀捡撿简簡见件见見舰艦剑劍荐薦贱賤践踐鉴鑑键鍵将將浆漿蒋蔣奖獎讲講酱醬' +
+            '胶膠浇澆骄驕娇嬌搅攪铰鉸矫矯脚腳角角轿轎较較阶階节節洁潔结結诫誡届屆紧緊' +
+            '锦錦仅僅谨謹进進晋晉尽盡劲勁荆荊茎莖惊驚经經净淨竞競镜鏡纠糾究究旧舊举舉' +
+            '剧劇据據惧懼距距锯鋸聚聚卷捲觉覺决決绝絕军軍钧鈞骏駿开開凯凱慨慨刊刊勘勘' +
+            '壳殼课課克剋垦懇恳墾坑坑空空控控库庫裤褲夸誇块塊快快宽寬矿礦旷曠况況亏虧' +
+            '窥窺馈饋溃潰扩擴阔闊蜡蠟腊臘莱萊来來赖賴兰蘭拦攔栏欄揽攬览覽懒懶烂爛滥濫' +
+            '捞撈劳勞涝澇唠嘮乐樂镭鐳垒壘类類泪淚离離厘釐丽麗励勵历歷厉厲立立隶隸帘簾' +
+            '联聯莲蓮连連镰鐮怜憐炼煉练練恋戀粮糧凉涼两兩辆輛谅諒辽遼疗療聊聊了了料料' +
+            '猎獵邻鄰临臨灵靈岭嶺领領刘劉浏瀏留留龙龍聋聾笼籠垄壟拢攏楼樓娄婁漏漏卢盧' +
+            '芦蘆炉爐颅顱卤滷鲁魯陆陸录錄赂賂路路驴驢吕呂铝鋁侣侶履履虑慮滤濾绿綠孪孿' +
+            '乱亂略略抡掄伦倫沦淪轮輪论論罗羅萝蘿逻邏锣鑼箩籮骡騾骆駱妈媽麻麻马馬玛瑪' +
+            '码碼蚂螞骂罵吗嗎买買麦麥卖賣迈邁脉脈瞒瞞蛮蠻满滿漫漫猫貓锚錨贸貿么麼没沒' +
+            '镁鎂门門闷悶们們猛猛梦夢弥彌迷迷谜謎觅覓幂冪绵綿缅緬面麵庙廟灭滅悯憫敏敏' +
+            '铭銘明鸣鸣鳴谬謬摸摸模模膜膜磨磨谋謀亩畝木木目目幕幕墓墓拿拿哪哪纳納钠鈉' +
+            '乃乃奶奶奶耐耐男男南南难難囊囊挠撓恼惱脑腦闹鬧呢呢内內嫩嫩能能尼尼泥泥拟擬' +
+            '逆逆匿匿腻膩年年念念娘娘酿釀鸟鳥尿尿捏捏宁寧拧擰泞濘柠檸纽紐钮鈕农農浓濃' +
+            '脓膿弄弄奴奴努努怒怒女女暖暖挪挪诺諾哦哦欧歐殴毆鸥鷗呕嘔偶偶沤漚爬爬怕怕' +
+            '拍拍排排牌牌派派攀攀盘盤判判叛叛盼盼庞龐旁旁胖胖抛拋跑跑泡炮炮砲陪陪培培' +
+            '赔賠佩佩配配喷噴盆盆鹏鵬彭彭捧捧碰碰批批披披劈劈皮皮疲疲脾脾匹匹辟闢偏偏' +
+            '篇篇片片骗騙飘飄漂漂票票拼拼贫貧频頻品品聘聘乒乒平平评評凭憑苹蘋屏屏瓶瓶' +
+            '坡坡泼潑颇頗婆婆迫迫破破魄魄剖剖扑撲铺鋪葡葡蒲蒲朴樸埔埔普普谱譜曝曝七七' +
+            '凄凄妻妻栖棲戚戚期期欺欺漆漆齐齊其其奇奇歧歧祈祈棋棋旗旗骑騎乞乞企企启啟' +
+            '岂豈起起气氣弃棄汽汽泣泣契契砌砌器器恰恰洽洽千千迁遷牵牽铅鉛谦謙签簽前前' +
+            '钱錢钳鉗潜潛浅淺遣遣欠欠歉歉枪槍腔腔强強墙牆抢搶悄悄敲敲乔喬侨僑桥橋瞧瞧' +
+            '巧巧俏俏撬撬窍竅切切茄茄且且怯怯窃竊钦欽侵侵亲親秦秦琴琴勤勤禽禽寝寢青青' +
+            '轻輕倾傾清清情情晴晴请請庆慶穷窮丘丘秋秋求求球球区區驱驅屈屈躯軀趋趨渠渠' +
+            '取取娶娶去去趣趣圈圈权權全全泉泉拳拳犬犬劝勸券券缺缺却卻确確雀雀裙裙群群' +
+            '然然燃燃染染壤壤让讓饶饒扰擾绕繞惹惹热熱人人仁仁忍忍刃刃认認任任韧韌扔扔' +
+            '仍仍日日荣榮融融容容溶溶熔熔柔柔揉揉肉肉如如儒儒乳乳辱辱入入软軟锐銳瑞瑞' +
+            '润潤若若弱弱撒撒洒灑萨薩塞塞赛賽三三伞傘散散桑桑丧喪扫掃嫂嫂色色涩澀森森' +
+            '僧僧杀殺沙沙纱紗傻傻啥啥筛篩晒曬山山删刪杉杉衫衫闪閃陕陝扇扇善善伤傷商商' +
+            '赏賞上上尚尚烧燒稍稍勺勺少少哨哨奢奢蛇蛇舌舌舍捨设設社社射射涉涉摄攝申申' +
+            '伸伸身身深深绅紳神神沈沈审審婶嬸肾腎甚甚渗滲慎慎升升生生声聲牲牲胜勝绳繩' +
+            '省省圣聖剩剩尸屍失失师師诗詩施施狮獅湿濕十十石石时時识識实實拾拾食食蚀蝕' +
+            '史史使使始始驶駛士士氏氏世世仕仕市市示示式式事事侍侍势勢视視试試饰飾室室' +
+            '逝逝释釋适適嗜嗜誓誓收收手手守守首首寿壽受受兽獸售售授授瘦瘦书書抒抒叔叔' +
+            '枢樞殊殊梳梳淑淑疏疏舒舒输輸蔬蔬熟熟暑暑署署属屬鼠鼠薯薯术術束束述述树樹' +
+            '竖豎数數刷刷耍耍衰衰摔摔甩甩帅帥栓栓拴拴双雙霜霜爽爽谁誰水水税稅睡睡顺順' +
+            '瞬瞬说說硕碩丝絲司司私私思思斯斯撕撕死死四四寺寺似似饲飼肆肆松松耸聳宋宋' +
+            '送送颂頌搜搜艘艘苏蘇俗俗诉訴肃肅素素速速宿宿塑塑溯溯酸酸蒜蒜算算虽雖随隨' +
+            '岁歲碎碎穗穗孙孫损損笋筍缩縮所所索索锁鎖他他它它她她塌塌塔塔踏踏台臺抬抬' +
+            '太太太态態泰泰贪貪摊攤滩灘瘫癱坛壇谈談痰痰谭譚潭潭坦坦毯毯叹歎炭炭探探碳碳' +
+            '汤湯唐唐堂堂塘塘糖糖躺躺趟趟烫燙涛濤掏掏逃逃桃桃陶陶淘淘讨討套套特特疼疼' +
+            '腾騰藤藤梯梯踢踢提提题題蹄蹄体體替替天添添田田甜甜填填挑挑条條跳跳贴貼铁鐵' +
+            '厅廳听聽亭亭庭庭停停挺挺艇艇通通同同铜銅童童统統桶桶筒筒痛痛偷偷头頭投投' +
+            '透透突突图圖徒徒涂塗途途屠屠土土吐吐兔兔团團推推腿腿退退吞吞屯屯托托拖拖' +
+            '脱脫驼駝妥妥拓拓哇哇娃娃挖挖洼窪瓦瓦袜襪歪歪外外弯彎湾灣丸丸完完玩玩顽頑' +
+            '挽挽晚晚碗碗万萬腕腕汪汪亡亡王王网網往往旺旺望望忘忘妄妄威威微微微危危违違' +
+            '围圍唯唯维維伟偉伪偽尾尾纬緯委委萎萎卫衛为為位位未未味味畏畏胃胃喂餵慰慰' +
+            '温溫文文纹紋闻聞蚊蚊稳穩问問翁翁窝窩我我卧臥握握污污乌烏呜嗚屋屋无無吴吳' +
+            '吾吾五五午午伍伍武武舞舞务務物物误誤悟悟雾霧夕夕西西吸吸希希昔昔析析息息' +
+            '悉悉惜惜稀稀溪溪锡錫熙熙膝膝习習席席袭襲媳媳洗洗喜喜戏戲系係细細隙隙虾蝦' +
+            '瞎瞎峡峽侠俠狭狹下下吓嚇夏夏厦廈仙仙先先纤纖掀掀鲜鮮闲閒贤賢弦弦咸鹹衔銜' +
+            '嫌嫌显顯险險县縣现現限限线線宪憲陷陷馅餡羡羨献獻乡鄉相相香香箱箱厢廂详詳' +
+            '祥祥翔翔享享响響想想象象项項巷巷像像橡橡削削消消宵宵销銷潇瀟萧蕭小小晓曉' +
+            '孝孝肖肖效效校校笑笑啸嘯些些歇歇协協邪邪胁脅斜斜谐諧携攜鞋鞋写寫泄洩泻瀉' +
+            '卸卸屑屑械械谢謝懈懈蟹蟹心心辛辛欣欣新新薪薪馨馨信信兴興星星腥腥刑刑行行' +
+            '形形型型醒醒杏杏姓姓幸幸性性凶凶兄兄胸胸雄雄熊熊休休修修羞羞朽朽秀秀绣繡' +
+            '袖袖锈鏽嗅嗅须須虚虛需需徐徐许許序序叙敘恤恤绪緒续續絮絮蓄蓄宣宣玄玄旋旋' +
+            '悬懸选選癣癬炫炫绚絢削削学學雪雪血血勋勳寻尋巡巡询詢循循训訓讯訊迅迅逊遜' +
+            '压壓呀呀押押鸦鴉鸭鴨牙牙芽芽崖崖哑啞雅雅亚亞讶訝咽咽烟煙淹淹延延严嚴言言' +
+            '岩岩沿沿炎炎研研盐鹽颜顏演演掩掩眼眼厌厭宴宴艳豔验驗焰焰雁雁燕燕央央殃殃' +
+            '秧秧扬揚羊羊阳陽杨楊洋洋仰仰养養氧氧痒癢样樣邀邀腰腰摇搖遥遙窑窯谣謠咬咬' +
+            '药藥要要耀耀耶耶爷爺也也冶冶野野业業叶葉页頁夜夜液液一一伊伊衣衣医醫依依' +
+            '仪儀宜宜姨姨移移遗遺疑疑乙乙已已以以矣矣蚁蟻椅椅义義亿億忆憶艺藝议議亦亦' +
+            '异異役役译譯易易疫疫益益谊誼逸逸意意溢溢毅毅翼翼因因阴陰音音姻姻银銀引引' +
+            '饮飲隐隱印印应應英英婴嬰鹰鷹迎迎盈盈营營蝇蠅赢贏影影映映硬硬拥擁庸庸永永' +
+            '泳泳勇勇涌湧用用优優忧憂悠悠尤尤由由邮郵犹猶油油游游友友有有又又右右幼幼' +
+            '诱誘于於予予余餘鱼魚娱娛渔漁愉愉愚愚与與宇宇羽羽雨雨语語玉玉育育浴浴预預' +
+            '域域欲欲喻喻寓寓御御裕裕遇遇愈愈誉譽冤冤元元园園员員原原圆圓援援缘緣源源' +
+            '远远怨怨院院愿願曰曰约約月月岳岳悦悅阅閱跃躍越越云雲匀勻允允陨隕孕孕运運' +
+            '晕暈韵韻蕴蘊杂雜砸砸灾災栽栽宰宰载載再再在在咱咱暂暫赞贊赃贓脏髒葬葬遭遭' +
+            '糟糟凿鑿早早枣棗澡澡藻藻灶灶皂皂造造噪噪燥燥躁躁则則责責择擇泽澤贼賊怎怎' +
+            '增增憎憎赠贈扎扎札札轧軋闸閘眨眨炸炸榨榨摘摘斋齋宅宅窄窄债債沾沾毡氈粘粘' +
+            '斩斬展展盏盞崭嶄占佔战戰站站栈棧绽綻章章彰彰樟樟张張涨漲掌掌丈丈仗仗帐帳' +
+            '胀脹账賬障障招招昭昭找找沼沼召召兆兆赵趙照照罩罩遮遮折折哲哲者者这這浙浙' +
+            '珍珍真真针針侦偵诊診枕枕阵陣振振镇震镇鎮争爭征徵挣掙睁睜蒸蒸整整正正证證' +
+            '郑鄭政政症症之之支支汁汁芝芝枝枝知知织織肢肢脂脂蜘蜘执執直直侄姪值值职職' +
+            '植植殖殖止止只隻旨旨址址纸紙指指趾趾至至志志制製质質治治致致秩秩掷擲智智' +
+            '滞滯置置中中忠忠终終钟鐘肿腫种种众眾重重州州舟舟周周洲洲粥粥轴軸肘肘皱皺' +
+            '昼晝骤驟朱朱诛誅珠珠株株诸諸猪豬竹竹烛燭逐逐主主煮煮嘱囑瞩矚住住助助注注' +
+            '贮貯驻駐柱柱祝祝著著筑築铸鑄抓抓爪爪专專砖磚转轉赚賺撰撰装裝妆妝庄莊桩樁' +
+            '壮壯状狀撞撞追追坠墜缀綴准準捉捉桌桌拙拙浊濁酌酌着著啄啄仔仔资資姿姿滋滋' +
+            '紫紫子子字字自自宗宗综綜棕棕踪蹤总總纵縱走走奏奏揍揍租租足足卒卒族族阻阻' +
+            '组組祖祖诅詛钻鑽嘴嘴最最罪罪醉醉尊尊遵遵昨昨左左作作坐坐座座做做';
+
+        const builtinS2TMap = new Map();
+        const builtinT2SMap = new Map();
+        for (let i = 0; i + 1 < BUILTIN_ST_PAIRS.length; i += 2) {
+            const sChar = BUILTIN_ST_PAIRS[i];
+            const tChar = BUILTIN_ST_PAIRS[i + 1];
+            if (sChar !== tChar) {
+                if (!builtinS2TMap.has(sChar)) builtinS2TMap.set(sChar, tChar);
+                if (!builtinT2SMap.has(tChar)) builtinT2SMap.set(tChar, sChar);
+            }
+        }
+
+        function convertWithBuiltinDict(text, mode) {
+            if (!text || mode === 'none') return text;
+            const map = mode === 's2t' ? builtinS2TMap : builtinT2SMap;
+            let out = '';
+            for (let i = 0; i < text.length; i++) {
+                const ch = text[i];
+                if (mode === 's2t') {
+                    if (ch === '“') { out += '「'; continue; }
+                    if (ch === '”') { out += '」'; continue; }
+                    if (ch === '‘') { out += '『'; continue; }
+                    if (ch === '’') { out += '』'; continue; }
+                } else if (mode === 't2s') {
+                    if (ch === '「') { out += '“'; continue; }
+                    if (ch === '」') { out += '”'; continue; }
+                    if (ch === '『') { out += '‘'; continue; }
+                    if (ch === '』') { out += '’'; continue; }
+                }
+                out += map.get(ch) || ch;
+            }
+            return out;
+        }
+
+        function convertChineseText(text, mode = state.zhConvert) {
+            if (!text || !mode || mode === 'none') return text;
+            try {
+                if (mode === 's2t' && typeof openccS2T === 'function') {
+                    return openccS2T(text);
+                }
+                if (mode === 't2s' && typeof openccT2S === 'function') {
+                    return openccT2S(text);
+                }
+            } catch {}
+            return convertWithBuiltinDict(text, mode);
+        }
+
+        function applyZhConvertToEpubContents(contents) {
+            if (!contents || !contents.document || !contents.document.body) return;
+            const docObj = contents.document;
+            const walker = docObj.createTreeWalker(docObj.body, NodeFilter.SHOW_TEXT, null);
+            let node;
+            while ((node = walker.nextNode())) {
+                const parentTag = node.parentElement ? node.parentElement.tagName : '';
+                if (parentTag === 'SCRIPT' || parentTag === 'STYLE') continue;
+                if (!node.nodeValue || !node.nodeValue.trim()) continue;
+
+                let orig = epubNodeOrigText.get(node);
+                if (typeof orig !== 'string') {
+                    orig = node.nodeValue;
+                    epubNodeOrigText.set(node, orig);
+                }
+                const targetVal = state.zhConvert === 'none'
+                    ? orig
+                    : convertChineseText(orig, state.zhConvert);
+                if (node.nodeValue !== targetVal) {
+                    node.nodeValue = targetVal;
+                }
+            }
+        }
+
+        function applyCurrentZhConversion() {
+            if (state.mode === 'txt' && state.rawTxtContent) {
+                const converted = convertChineseText(state.rawTxtContent, state.zhConvert);
+                state.txtContent = converted;
+                txtContent.textContent = converted;
+                requestAnimationFrame(() => {
+                    recalculateTxtPagination(true);
+                    restoreTxtHighlightsInDom();
+                });
+            } else if (state.mode === 'epub' && rendition) {
+                try {
+                    const contentsList = rendition.getContents();
+                    if (Array.isArray(contentsList)) {
+                        contentsList.forEach(c => applyZhConvertToEpubContents(c));
+                    }
+                    tocRenderedForToken = -1;
+                    if (!sidebarTOC.classList.contains('hidden') && pendingTocItems) {
+                        renderTOC(pendingTocItems);
+                        tocRenderedForToken = currentBookToken;
+                    }
+                    scheduleEpubResize();
+                } catch {}
+            }
+        }
+
+        async function initChineseConverter() {
+            try {
+                if (typeof window.OpenCC === 'undefined') {
+                    await loadScriptWithFallback(
+                        './libs/opencc.min.js',
+                        'https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.js'
+                    );
+                }
+                if (window.OpenCC && typeof window.OpenCC.Converter === 'function') {
+                    openccS2T = window.OpenCC.Converter({ from: 'cn', to: 'tw' });
+                    openccT2S = window.OpenCC.Converter({ from: 'tw', to: 'cn' });
+                    if (state.zhConvert !== 'none' && state.mode) {
+                        applyCurrentZhConversion();
+                    }
+                }
+            } catch {
+                // 離線且無 opencc.min.js 時自動維持內建離線字典，不影響使用
+            }
+        }
+
         // Firebase 選配狀態
         let firebaseApi = null;
         let db = null;
@@ -1124,6 +1418,21 @@
         // === 讓出主執行緒（確保大檔載入前先更新進度文字） ===
         function yieldToUI() {
             return new Promise(resolve => setTimeout(resolve, 20));
+        }
+
+        // === 更新「畫線註記」按鈕的已選字提示狀態（方便 Android 確認已抓到選字） ===
+        function updateSelectionIndicator() {
+            const hasSelection = (state.mode === 'epub' && !!selectedCfi) || (state.mode === 'txt' && !!cachedTxtRange);
+            btnToggleHighlight.classList.toggle('active-btn', hasSelection);
+            btnToggleHighlight.textContent = hasSelection ? '畫線註記(已選字)' : '畫線註記';
+        }
+
+        function clearCachedSelection() {
+            selectedCfi = null;
+            selectedEpubText = '';
+            cachedTxtRange = null;
+            cachedTxtText = '';
+            updateSelectionIndicator();
         }
 
         // === Toast 提示 ===
@@ -1337,8 +1646,11 @@
                 const payload = {
                     fontSize: state.fontSize,
                     lineHeight: state.lineHeight,
+                    letterSpacing: state.letterSpacing,
                     fontFamily: state.fontFamily,
                     direction: state.direction,
+                    txtEncoding: state.txtEncoding,
+                    zhConvert: state.zhConvert,
                     isDarkMode: state.isDarkMode,
                     bgOpacity: state.bgOpacity,
                     customBgDataUrl: state.customBgDataUrl,
@@ -1361,8 +1673,13 @@
             if (!data) return;
             if (typeof data.fontSize === 'number') state.fontSize = data.fontSize;
             if (typeof data.lineHeight === 'number') state.lineHeight = data.lineHeight;
+            if (typeof data.letterSpacing === 'number') state.letterSpacing = data.letterSpacing;
             if (typeof data.fontFamily === 'string') state.fontFamily = data.fontFamily;
             if (data.direction === 'horizontal' || data.direction === 'vertical') state.direction = data.direction;
+            if (typeof data.txtEncoding === 'string') state.txtEncoding = data.txtEncoding;
+            if (data.zhConvert === 'none' || data.zhConvert === 's2t' || data.zhConvert === 't2s') {
+                state.zhConvert = data.zhConvert;
+            }
             if (typeof data.isDarkMode === 'boolean') state.isDarkMode = data.isDarkMode;
             if (typeof data.bgOpacity === 'number') state.bgOpacity = data.bgOpacity;
             if (typeof data.customBgDataUrl === 'string') state.customBgDataUrl = data.customBgDataUrl;
@@ -1377,9 +1694,19 @@
             fontSizeDisplay.textContent = `${state.fontSize}px`;
             lineHeightSlider.value = state.lineHeight;
             lineHeightDisplay.textContent = state.lineHeight.toFixed(1);
+            letterSpacingSlider.value = state.letterSpacing;
+            letterSpacingDisplay.textContent = `${state.letterSpacing}px`;
             bgOpacitySlider.value = state.bgOpacity;
             bgOpacityDisplay.textContent = `${state.bgOpacity}%`;
             directionSelect.value = state.direction;
+            zhConvertSelect.value = state.zhConvert;
+
+            if ([...txtEncodingSelect.options].some(o => o.value === state.txtEncoding)) {
+                txtEncodingSelect.value = state.txtEncoding;
+            } else {
+                state.txtEncoding = 'auto';
+                txtEncodingSelect.value = 'auto';
+            }
 
             if ([...fontSelect.options].some(o => o.value === state.fontFamily)) {
                 fontSelect.value = state.fontFamily;
@@ -1456,8 +1783,11 @@
                 await firebaseApi.setDoc(docRef, {
                     fontSize: state.fontSize,
                     lineHeight: state.lineHeight,
+                    letterSpacing: state.letterSpacing,
                     fontFamily: state.fontFamily,
                     direction: state.direction,
+                    txtEncoding: state.txtEncoding,
+                    zhConvert: state.zhConvert,
                     isDarkMode: state.isDarkMode,
                     bgOpacity: state.bgOpacity,
                     bookmarksByBook: state.bookmarksByBook,
@@ -1495,7 +1825,7 @@
 
         // === 側邊欄與浮動選單開關 ===
         function closeAllPanels(exceptId = null) {
-            [sidebarTOC, sidebarHighlights, sidebarBookmarks, sidebarSettings, highlightMenu, cloudImportMenu].forEach(panel => {
+            [sidebarTOC, sidebarHighlights, sidebarBookmarks, sidebarFonts, sidebarSettings, highlightMenu, cloudImportMenu].forEach(panel => {
                 if (panel && panel.id !== exceptId) {
                     panel.classList.add('hidden');
                 }
@@ -1528,6 +1858,13 @@
         });
         btnCloseBookmarks.addEventListener('click', () => sidebarBookmarks.classList.add('hidden'));
 
+        btnToggleFonts.addEventListener('click', () => {
+            const willOpen = sidebarFonts.classList.contains('hidden');
+            closeAllPanels('sidebarFonts');
+            sidebarFonts.classList.toggle('hidden', !willOpen);
+        });
+        btnCloseFonts.addEventListener('click', () => sidebarFonts.classList.add('hidden'));
+
         btnToggleSettings.addEventListener('click', () => {
             const willOpen = sidebarSettings.classList.contains('hidden');
             closeAllPanels('sidebarSettings');
@@ -1535,7 +1872,20 @@
         });
         btnCloseSettings.addEventListener('click', () => sidebarSettings.classList.add('hidden'));
 
+        // 點擊「畫線註記」時防止搶走焦點，同時支援已快取的 Android 選字範圍
+        btnToggleHighlight.addEventListener('mousedown', (e) => e.preventDefault());
         btnToggleHighlight.addEventListener('click', () => {
+            if (state.mode === 'epub' && rendition) {
+                try {
+                    const contentsList = rendition.getContents();
+                    if (Array.isArray(contentsList)) {
+                        contentsList.forEach(c => captureEpubSelectionFromContents(c));
+                    }
+                } catch {}
+            } else if (state.mode === 'txt') {
+                captureTxtSelection();
+            }
+
             const willOpen = highlightMenu.classList.contains('hidden');
             closeAllPanels('highlightMenu');
             highlightMenu.classList.toggle('hidden', !willOpen);
@@ -1672,6 +2022,161 @@
             }
         }
 
+        // === 智慧 TXT 中文編碼評分偵測引擎（徹底解決 Big5 / GB18030 / UTF-16 / UTF-8 亂碼） ===
+        const COMMON_CJK_CHARS = new Set(
+            '的一是不了在人有我他這个們们中來来上大為为和國国地到以說说時时要就出會会可也你對对生能而子那得於于著着下自之年過过發发後后作裡里用道行所然家種种事成方多經经麼么去法學学如都同現现當当沒没動动面起看定天分還还進进好小部其些主樣样理心她本前開开但因只從从想實实日者意無无力它與与長长把機机十民第公此已工使情明性知全三又關关點点正業业外將将兩两高間间由問问很最重並并物手應应戰战向頭头文體体相見见被利什二等產产或新己制身果加西月話话合回特代內内信表化老給给世位次度門门任常先海通教兒儿原東东聲声提立及比員员解水名真論论處处走義义各入幾几口認认條条平系氣气題题活更別别打女變变四神總总何電电數数安少報报才結结反受目太量再感建務务做接必場场件計计管期市直命山金指許许統统區区保至隊队形社便空決决治展馬马科司五基眼書书非則则聽听白卻却界達达光放強强即像難难且權权思王象完設设式色路記记南品住告類类求據据程北邊边死張张該该交規规萬万取拉格望覺觉術术領领共確确傳传師师觀观清今切院讓让識识候帶带導导爭争運运笑飛飞風风步改收根干造言聯联持組组每車车親亲極极林服快辦办議议往元士證证近失轉转夫令准布始怎呢存未遠远叫台單单影具字愛爱擊击流備备兵連连調调深商算質质團团集百需價价花華华城石級级整府離离況况請请技際际約约示復复病息究線线似官火斷断精滿满支視视消越器容照須须九增研寫写稱称八功嗎吗包片史乎查輕轻易早曾除找裝装廣广顯显吧阿李談谈吃圖图念六引歷历首局突專专費费號号盡尽另周較较注語语僅仅考落青隨随選选列武紅红響响雖虽推勢势參参希古眾众構构房半節节土投某案黑維维劃划敵敌致陳陈律足態态護护七興兴派孩驗验責责星夠够章音跟志底站嚴严例防族供效續续施留講讲型料終终答緊紧黃黄絕绝奇察母京段依批群項项故按河米圍围江害雙双境客紀纪舉举殺杀攻父密低朝友訴诉止細细願愿千值仍男錢钱破網网熱热助倒育屬属坐帝限船臉脸職职速刻樂乐否剛刚威毛狀状甚獨独球般普怕校苦久既衣鏡镜夢梦靜静夜冷痛淚泪劍剑血魔仙靈灵皇'
+        );
+
+        const COMMON_CJK_PUNCT = new Set('，。！？、；：「」『』（）《》【】—…“”‘’·　');
+
+        function scoreDecodedChineseText(text) {
+            if (!text || text.length === 0) return -1e9;
+            let score = 0;
+            const len = Math.min(text.length, 24000);
+            let replacementCount = 0;
+            let controlCount = 0;
+
+            for (let i = 0; i < len; i++) {
+                const ch = text[i];
+                const code = ch.charCodeAt(0);
+
+                if (code === 0xFFFD) {
+                    replacementCount++;
+                    score -= 45;
+                    continue;
+                }
+                if (code === 0x00 || (code < 0x20 && code !== 0x09 && code !== 0x0A && code !== 0x0D)) {
+                    controlCount++;
+                    score -= 30;
+                    continue;
+                }
+                if (COMMON_CJK_PUNCT.has(ch)) {
+                    score += 8;
+                } else if (COMMON_CJK_CHARS.has(ch)) {
+                    score += 6;
+                } else if (code >= 0x4E00 && code <= 0x9FFF) {
+                    // 一般常用區漢字（較生僻漢字給小幅正分，避免誤判的亂碼漢字得分過高）
+                    score += 0.5;
+                } else if ((code >= 0x3040 && code <= 0x30FF)) {
+                    // 日文假名
+                    score += 3;
+                } else if (code >= 0x20 && code <= 0x7E) {
+                    score += 0.3;
+                } else if (code >= 0xE000 && code <= 0xF8FF) {
+                    // 私用區字元通常是誤解碼產物
+                    score -= 12;
+                }
+            }
+
+            if (replacementCount > len * 0.03) score -= 5000;
+            if (controlCount > len * 0.02) score -= 5000;
+            return score;
+        }
+
+        function detectBomEncoding(bytes) {
+            if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+                return 'utf-8';
+            }
+            if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) {
+                return 'utf-16le';
+            }
+            if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) {
+                return 'utf-16be';
+            }
+            return null;
+        }
+
+        function detectUtf16WithoutBom(bytes) {
+            const sampleLen = Math.min(bytes.length, 4096);
+            if (sampleLen < 16) return null;
+            let zeroEven = 0;
+            let zeroOdd = 0;
+            for (let i = 0; i < sampleLen; i++) {
+                if (bytes[i] === 0x00) {
+                    if (i % 2 === 0) zeroEven++;
+                    else zeroOdd++;
+                }
+            }
+            const totalPairs = sampleLen / 2;
+            if (zeroOdd > totalPairs * 0.25 && zeroEven < totalPairs * 0.08) return 'utf-16le';
+            if (zeroEven > totalPairs * 0.25 && zeroOdd < totalPairs * 0.08) return 'utf-16be';
+            return null;
+        }
+
+        function decodeTextBufferSmart(buffer, forcedEncoding = 'auto') {
+            if (!buffer) return { text: '', encoding: 'utf-8' };
+
+            const cleanEncoding = (forcedEncoding || 'auto').toLowerCase();
+            if (cleanEncoding !== 'auto') {
+                try {
+                    const text = new TextDecoder(cleanEncoding).decode(buffer).replace(/^\uFEFF/, '');
+                    return { text, encoding: cleanEncoding };
+                } catch {}
+            }
+
+            const bytes = new Uint8Array(buffer);
+
+            // 1. 優先檢查 BOM 標頭
+            const bomEnc = detectBomEncoding(bytes);
+            if (bomEnc) {
+                try {
+                    const text = new TextDecoder(bomEnc).decode(buffer).replace(/^\uFEFF/, '');
+                    return { text, encoding: bomEnc };
+                } catch {}
+            }
+
+            // 2. 檢查無 BOM 的 UTF-16LE / UTF-16BE
+            const utf16Guess = detectUtf16WithoutBom(bytes);
+            if (utf16Guess) {
+                try {
+                    const text = new TextDecoder(utf16Guess).decode(buffer).replace(/^\uFEFF/, '');
+                    return { text, encoding: utf16Guess };
+                } catch {}
+            }
+
+            // 3. 嚴格檢查是否為合法 UTF-8
+            try {
+                const strictUtf8 = new TextDecoder('utf-8', { fatal: true }).decode(buffer).replace(/^\uFEFF/, '');
+                return { text: strictUtf8, encoding: 'utf-8' };
+            } catch {}
+
+            // 4. 非嚴格 UTF-8 時，針對前 32KB 進行多編碼評分（精準區分 GB18030 簡體、Big5 繁體、UTF-8 容錯、Shift_JIS）
+            const sampleBuffer = buffer.byteLength > 32768 ? buffer.slice(0, 32768) : buffer;
+            const candidates = ['gb18030', 'big5', 'utf-8', 'shift_jis', 'utf-16le'];
+            let bestEncoding = 'gb18030';
+            let bestScore = -Infinity;
+
+            for (const enc of candidates) {
+                try {
+                    const sampleText = new TextDecoder(enc).decode(sampleBuffer);
+                    const score = scoreDecodedChineseText(sampleText);
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestEncoding = enc;
+                    }
+                } catch {}
+            }
+
+            try {
+                const fullText = new TextDecoder(bestEncoding).decode(buffer).replace(/^\uFEFF/, '');
+                return { text: fullText, encoding: bestEncoding };
+            } catch {
+                return { text: new TextDecoder('utf-8').decode(buffer).replace(/^\uFEFF/, ''), encoding: 'utf-8' };
+            }
+        }
+
+        function formatEncodingLabel(enc) {
+            const map = {
+                'utf-8': 'UTF-8',
+                'big5': 'Big5 (繁體)',
+                'gb18030': 'GB18030 / GBK (簡體)',
+                'utf-16le': 'UTF-16LE',
+                'utf-16be': 'UTF-16BE',
+                'shift_jis': 'Shift_JIS'
+            };
+            return map[(enc || '').toLowerCase()] || enc.toUpperCase();
+        }
+
         async function fetchCloudArrayBuffer(targetUrl) {
             const candidates = [
                 targetUrl,
@@ -1738,10 +2243,9 @@
                     cloudImportModal.classList.add('hidden');
                     await loadEpubFromArrayBuffer(buffer, fileName);
                 } else {
-                    const text = new TextDecoder('utf-8').decode(buffer);
                     if (!fileName.toLowerCase().endsWith('.txt')) fileName += '.txt';
                     cloudImportModal.classList.add('hidden');
-                    await loadTxtContent(text, fileName);
+                    await loadTxtFromArrayBuffer(buffer, fileName);
                 }
             } finally {
                 btnLoadCloudUrl.disabled = false;
@@ -1819,7 +2323,6 @@
                 if (hit) return hit;
             }
 
-            // 最後備援：依檔名快速比對
             const base = cleanAttr.split('/').pop().toLowerCase();
             const matches = zipBasenameIndex.get(base);
             if (matches && matches.length > 0) {
@@ -1856,7 +2359,7 @@
             }
         }
 
-        // 僅針對「目前正在觀看的這一章」按需解壓縮圖片與 SVG 封面（不阻塞文字顯示）
+        // 僅針對「目前正在觀看的這一章」按需解壓縮圖片與 SVG 封面
         function lazyLoadChapterMedia(contents, token) {
             if (!isTurboLazyMode || !contents || !contents.document || !book || !book.archive || !book.archive.zip) return;
 
@@ -1887,7 +2390,7 @@
                     getLazyBlobUrl(zipKey).then(blobUrl => {
                         if (blobUrl && token === currentBookToken) {
                             el.setAttribute('href', blobUrl);
-                            el.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', blobUrl);
+                            el.setAttributeNS('http://www.w3.org/1999/xlink', 'href', blobUrl);
                         }
                     })
                 );
@@ -1921,49 +2424,69 @@
             isTurboLazyMode = false;
             pendingTocItems = null;
             tocRenderedForToken = -1;
-            selectedCfi = null;
-            selectedEpubText = '';
+            clearCachedSelection();
             isEpubNavigating = false;
             epubViewer.innerHTML = '';
         }
 
-        // === 本地檔案匯入 ===
+        // === 本地檔案匯入（相容 Android 系統檔案管理員：依檔名與檔案標頭自動判斷格式） ===
         fileInput.addEventListener('change', async (event) => {
             const file = event.target.files && event.target.files[0];
             if (!file) return;
 
-            const lowerName = file.name.toLowerCase();
-            if (lowerName.endsWith('.epub')) {
-                await loadEpub(file);
-            } else if (lowerName.endsWith('.txt')) {
-                const text = await file.text();
-                await loadTxtContent(text, file.name);
-            } else {
-                showToast('僅支援 .epub 與 .txt 格式檔案。');
+            const lowerName = (file.name || '').toLowerCase();
+            try {
+                const buffer = await file.arrayBuffer();
+                const isEpub = lowerName.endsWith('.epub') || isZipOrEpubBuffer(buffer);
+                const isTxt = lowerName.endsWith('.txt') || (file.type && file.type.startsWith('text/')) || !isEpub;
+
+                if (isEpub) {
+                    const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+                    pageInfo.textContent = `正在載入 ${sizeMB} MB 書籍（極速模式）...`;
+                    showToast(`正在極速載入 ${file.name} (${sizeMB} MB)...`, 2500);
+                    await yieldToUI();
+                    await loadEpubFromArrayBuffer(buffer, file.name || 'book.epub');
+                } else if (isTxt) {
+                    await loadTxtFromArrayBuffer(buffer, file.name || 'book.txt');
+                } else {
+                    showToast('僅支援 .epub 與 .txt 格式檔案。');
+                }
+            } catch {
+                showToast('檔案讀取失敗，請確認檔案未受損。');
             }
 
             fileInput.value = '';
         });
 
-        // === TXT 引擎（100% 離線可用） ===
-        async function loadTxtContent(text, fileName) {
+        // === TXT 引擎（100% 離線可用 + 智慧中文編碼偵測 + 即時切換編碼） ===
+        async function loadTxtFromArrayBuffer(buffer, fileName, keepCurrentPage = false) {
+            currentTxtBuffer = buffer;
+            const { text, encoding } = decodeTextBufferSmart(buffer, state.txtEncoding);
+            await loadTxtContent(text, fileName, encoding, keepCurrentPage);
+        }
+
+        async function loadTxtContent(text, fileName, detectedEncoding = 'utf-8', keepCurrentPage = false) {
             cleanupEpub();
             state.mode = 'txt';
             state.currentFile = fileName;
-            state.txtContent = text;
-            state.txtPage = 0;
+            state.rawTxtContent = text;
+            const displayTxt = convertChineseText(text, state.zhConvert);
+            state.txtContent = displayTxt;
+            if (!keepCurrentPage) state.txtPage = 0;
 
             epubViewer.classList.add('hidden');
             txtViewer.classList.remove('hidden');
 
-            txtContent.textContent = text;
+            txtContent.textContent = displayTxt;
             tocList.innerHTML = '<li class="muted-text">TXT 純文字檔無章節目錄</li>';
 
             applyStyles();
 
-            const saved = await getSavedBookProgress(fileName);
-            if (saved && typeof saved.txtPage === 'number' && saved.txtPage >= 0) {
-                state.txtPage = saved.txtPage;
+            if (!keepCurrentPage) {
+                const saved = await getSavedBookProgress(fileName);
+                if (saved && typeof saved.txtPage === 'number' && saved.txtPage >= 0) {
+                    state.txtPage = saved.txtPage;
+                }
             }
 
             requestAnimationFrame(() => {
@@ -1973,7 +2496,7 @@
 
             renderBookmarks();
             renderHighlightSummary();
-            showToast(`已載入：${fileName}`);
+            showToast(`已載入：${fileName}（編碼：${formatEncodingLabel(detectedEncoding)}）`);
         }
 
         function recalculateTxtPagination(keepCurrentPage = true) {
@@ -2045,28 +2568,52 @@
             });
         }
 
-        // === EPUB 引擎（30MB+ 超大檔極速按需解壓模式） ===
-        async function loadEpub(file) {
-            const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-            pageInfo.textContent = `正在載入 ${sizeMB} MB 書籍（極速模式）...`;
-            showToast(`正在極速載入 ${file.name} (${sizeMB} MB)...`, 2500);
-            await yieldToUI();
-
+        // === Android 觸控選字捕捉器（解決手機長按選字不觸發 epub.js mouseup 問題） ===
+        function captureEpubSelectionFromContents(contents) {
+            if (!contents || !contents.window) return;
             try {
-                const buffer = await file.arrayBuffer();
-                await loadEpubFromArrayBuffer(buffer, file.name);
-            } catch {
-                showToast('無法讀取此 EPUB 檔案。');
-                pageInfo.textContent = '載入失敗';
-            }
+                const sel = contents.window.getSelection();
+                if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
+                const text = sel.toString().replace(/\s+/g, ' ').trim();
+                if (!text) return;
+                const range = sel.getRangeAt(0);
+                const cfi = contents.cfiFromRange(range);
+                if (cfi) {
+                    selectedCfi = cfi;
+                    selectedEpubText = text;
+                    updateSelectionIndicator();
+                }
+            } catch {}
         }
 
+        function captureTxtSelection() {
+            if (state.mode !== 'txt') return;
+            try {
+                const sel = window.getSelection();
+                if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
+                if (!txtContent.contains(sel.anchorNode) || !txtContent.contains(sel.focusNode)) return;
+                const text = sel.toString().replace(/\s+/g, ' ').trim();
+                if (!text) return;
+                cachedTxtRange = sel.getRangeAt(0).cloneRange();
+                cachedTxtText = text;
+                updateSelectionIndicator();
+            } catch {}
+        }
+
+        document.addEventListener('selectionchange', () => {
+            if (state.mode === 'txt') {
+                captureTxtSelection();
+            }
+        });
+
+        // === EPUB 引擎（30MB+ 超大檔極速按需解壓模式） ===
         async function loadEpubFromArrayBuffer(buffer, fileName) {
             if (!epubEngineReady || typeof window.ePub === 'undefined') {
                 showToast('找不到離線 EPUB 引擎，請確認資料夾內已放入 libs/jszip.min.js 與 libs/epub.min.js。', 5000);
                 return;
             }
 
+            currentTxtBuffer = null;
             cleanupEpub();
             const token = currentBookToken;
 
@@ -2076,8 +2623,6 @@
             currentEpubByteLength = buffer ? buffer.byteLength : 0;
 
             const sizeMB = currentEpubByteLength / (1024 * 1024);
-            // 檔案 >= 3MB 即啟用「極速按需解壓模式 (replacements: 'none')」
-            // 徹底略過啟動時預先解壓全書插圖與內嵌字體，讓 30MB+ EPUB 也能秒開！
             isTurboLazyMode = currentEpubByteLength >= 3 * 1024 * 1024;
 
             txtViewer.classList.add('hidden');
@@ -2103,7 +2648,6 @@
                     book.package.metadata.direction = state.direction === 'vertical' ? 'rtl' : 'ltr';
                 }
 
-                // 背景讀取目錄資料，點開「選擇章節」時才渲染按鈕
                 book.loaded.navigation.then(nav => {
                     if (token !== currentBookToken) return;
                     pendingTocItems = nav && Array.isArray(nav.toc) ? nav.toc : [];
@@ -2136,6 +2680,17 @@
                 showToast('EPUB 解析失敗，請確認檔案未受損或未受 DRM 保護。');
                 pageInfo.textContent = '載入失敗';
             }
+        }
+
+        function enforceEpubIframeHeight() {
+            if (state.mode !== 'epub') return;
+            const viewerHeight = Math.floor(epubViewer.clientHeight) || (window.innerHeight - 130);
+            epubViewer.querySelectorAll('iframe').forEach(iframe => {
+                if (state.direction === 'vertical') {
+                    iframe.style.height = `${viewerHeight}px`;
+                    iframe.style.maxHeight = `${viewerHeight}px`;
+                }
+            });
         }
 
         function initEpubRendition(startCfi = null) {
@@ -2171,11 +2726,32 @@
             });
 
             rendition.hooks.content.register((contents) => {
-                // 極速模式下按需載入當前章節插圖，不阻塞文字渲染
                 if (isTurboLazyMode) {
                     lazyLoadChapterMedia(contents, token);
                 }
-                return injectFontsAndStylesToEpubContent(contents);
+
+                // 綁定 Android / iOS 觸控長按選字監聽（補足 epub.js 僅監聽 mouseup 的不足）
+                if (contents && contents.document) {
+                    const docObj = contents.document;
+                    if (!docObj._einkSelectionBound) {
+                        docObj._einkSelectionBound = true;
+                        let selTimer = null;
+                        const onSelChange = () => {
+                            clearTimeout(selTimer);
+                            selTimer = setTimeout(() => captureEpubSelectionFromContents(contents), 60);
+                        };
+                        docObj.addEventListener('selectionchange', onSelChange);
+                        docObj.addEventListener('touchend', onSelChange, { passive: true });
+                        docObj.addEventListener('mouseup', onSelChange);
+                    }
+                }
+
+                const result = injectFontsAndStylesToEpubContent(contents);
+                if (state.zhConvert !== 'none') {
+                    applyZhConvertToEpubContents(contents);
+                }
+                setTimeout(() => enforceEpubIframeHeight(), 30);
+                return result;
             });
 
             rendition.on('relocated', (location) => {
@@ -2183,6 +2759,7 @@
                 if (location && location.start && location.start.cfi) {
                     state.epubCfi = location.start.cfi;
                 }
+                enforceEpubIframeHeight();
                 updateEpubPagination(location);
             });
 
@@ -2195,6 +2772,7 @@
                 } catch {
                     selectedEpubText = '';
                 }
+                updateSelectionIndicator();
             });
 
             const displayPromise = startCfi
@@ -2203,10 +2781,10 @@
 
             displayPromise.then(() => {
                 if (token !== currentBookToken || !book || !rendition) return;
+                enforceEpubIframeHeight();
                 restoreEpubHighlights();
                 updateEpubPagination();
 
-                // 大型檔案或章節數較多時，略過耗時的全書掃描，直接以章節進度估算全書百分比
                 const isLargeEpub = isTurboLazyMode || book.spine.spineItems.length > 40;
                 if (isLargeEpub) {
                     epubLocationsFailed = true;
@@ -2289,6 +2867,7 @@
                 const h = Math.floor(epubViewer.clientHeight) || (window.innerHeight - 130);
                 try {
                     rendition.resize(w, h);
+                    enforceEpubIframeHeight();
                     updateEpubPagination();
                 } catch {}
             }, 120);
@@ -2311,7 +2890,7 @@
                     btn.type = 'button';
                     btn.className = 'toc-item-btn';
                     btn.style.paddingLeft = `${8 + depth * 16}px`;
-                    btn.textContent = (item.label || '未命名章節').trim();
+                    btn.textContent = convertChineseText((item.label || '未命名章節').trim(), state.zhConvert);
 
                     btn.addEventListener('click', () => {
                         if (!rendition || !item.href) return;
@@ -2342,7 +2921,7 @@
             tocList.appendChild(fragment);
         }
 
-        // === 樣式與字體同步引擎（按需零複製注入） ===
+        // === 樣式與字體同步引擎（精準像素鎖定直排高度，防止文字往下跑） ===
         async function injectFontsAndStylesToEpubContent(contents) {
             if (!contents || !contents.document) return;
             const docObj = contents.document;
@@ -2373,35 +2952,47 @@
             const textColor = state.isDarkMode ? '#F2F3F9' : '#2B2D40';
             const isVertical = state.direction === 'vertical';
             const writingMode = isVertical ? 'vertical-rl' : 'horizontal-tb';
+            const viewerHeight = Math.floor(epubViewer.clientHeight) || (window.innerHeight - 130);
             const fontFamilyRule = state.fontFamily && state.fontFamily !== 'inherit'
                 ? `font-family: ${state.fontFamily} !important;`
                 : '';
 
             const verticalFixCss = isVertical ? `
                 html {
+                    writing-mode: vertical-rl !important;
+                    -webkit-writing-mode: vertical-rl !important;
                     column-width: auto !important;
                     -webkit-column-width: auto !important;
                     column-count: auto !important;
                     -webkit-column-count: auto !important;
                     columns: auto !important;
                     column-gap: 0 !important;
-                    height: 100vh !important;
-                    max-height: 100vh !important;
+                    height: ${viewerHeight}px !important;
+                    max-height: ${viewerHeight}px !important;
+                    min-height: 0 !important;
+                    width: auto !important;
+                    overflow-y: hidden !important;
                     margin: 0 !important;
                     padding: 0 !important;
                     box-sizing: border-box !important;
                     vertical-align: top !important;
                 }
                 body {
+                    writing-mode: vertical-rl !important;
+                    -webkit-writing-mode: vertical-rl !important;
                     column-width: auto !important;
                     -webkit-column-width: auto !important;
                     column-count: auto !important;
                     -webkit-column-count: auto !important;
                     columns: auto !important;
-                    height: 100% !important;
-                    max-height: 100% !important;
+                    height: ${viewerHeight}px !important;
+                    max-height: ${viewerHeight}px !important;
+                    min-height: 0 !important;
+                    width: auto !important;
+                    min-width: 100% !important;
+                    overflow-y: hidden !important;
                     margin: 0 !important;
-                    padding: 12px 20px !important;
+                    padding: 10px 16px !important;
                     box-sizing: border-box !important;
                     vertical-align: top !important;
                     text-align: start !important;
@@ -2412,7 +3003,10 @@
                     margin-bottom: 0 !important;
                     padding-top: 0 !important;
                     padding-bottom: 0 !important;
+                    max-height: ${Math.max(120, viewerHeight - 20)}px !important;
                     vertical-align: top !important;
+                    align-items: flex-start !important;
+                    justify-content: flex-start !important;
                 }
                 p, blockquote, h1, h2, h3, h4, h5, h6 {
                     margin-left: 0.6em !important;
@@ -2437,24 +3031,51 @@
                         ${fontFamilyRule}
                         font-size: ${state.fontSize}px !important;
                         line-height: ${state.lineHeight} !important;
+                        letter-spacing: ${state.letterSpacing}px !important;
+                        -webkit-user-select: text !important;
+                        user-select: text !important;
                     }
                     p, div, span, li, blockquote, h1, h2, h3, h4, h5, h6, a {
                         color: ${textColor} !important;
                         background-color: transparent !important;
                         ${fontFamilyRule}
                         line-height: ${state.lineHeight} !important;
+                        letter-spacing: ${state.letterSpacing}px !important;
+                        -webkit-user-select: text !important;
+                        user-select: text !important;
+                    }
+                    p, div, span, li, blockquote, h1, h2, h3, h4, h5, h6, a {
+                        color: ${textColor} !important;
+                        background-color: transparent !important;
+                        ${fontFamilyRule}
+                        line-height: ${state.lineHeight} !important;
+                        -webkit-user-select: text !important;
+                        user-select: text !important;
                     }
                     p, div, span, li, blockquote {
                         font-size: ${state.fontSize}px !important;
                     }
                     img, svg {
                         max-width: 100% !important;
-                        max-height: 92vh !important;
+                        max-height: ${Math.max(120, viewerHeight - 24)}px !important;
                         height: auto !important;
                         object-fit: contain !important;
                     }
                     ${verticalFixCss}
                 `;
+            }
+
+            if (isVertical) {
+                if (docObj.documentElement) {
+                    docObj.documentElement.style.setProperty('height', `${viewerHeight}px`, 'important');
+                    docObj.documentElement.style.setProperty('max-height', `${viewerHeight}px`, 'important');
+                    docObj.documentElement.style.setProperty('overflow-y', 'hidden', 'important');
+                }
+                if (docObj.body) {
+                    docObj.body.style.setProperty('height', `${viewerHeight}px`, 'important');
+                    docObj.body.style.setProperty('max-height', `${viewerHeight}px`, 'important');
+                    docObj.body.style.setProperty('overflow-y', 'hidden', 'important');
+                }
             }
         }
 
@@ -2473,6 +3094,7 @@
         function applyStyles() {
             txtContent.style.fontSize = `${state.fontSize}px`;
             txtContent.style.lineHeight = `${state.lineHeight}`;
+            txtContent.style.letterSpacing = `${state.letterSpacing}px`;
             txtContent.style.fontFamily = state.fontFamily;
             txtContent.style.color = state.isDarkMode ? '#F2F3F9' : '#2B2D40';
             txtContent.style.backgroundColor = 'transparent';
@@ -2485,7 +3107,10 @@
                 const contentsList = rendition.getContents();
                 if (Array.isArray(contentsList)) {
                     Promise.all(contentsList.map(c => injectFontsAndStylesToEpubContent(c)))
-                        .then(() => scheduleEpubResize())
+                        .then(() => {
+                            enforceEpubIframeHeight();
+                            scheduleEpubResize();
+                        })
                         .catch(() => {});
                 }
             }
@@ -2502,7 +3127,7 @@
             const file = e.target.files && e.target.files[0];
             if (!file) return;
 
-            const baseName = file.name.replace(/\.(ttf|ttc)$/i, '');
+            const baseName = file.name.replace(/\.(ttf|ttc|otf)$/i, '');
             const uniqueFamily = `CustomFont_${Date.now()}`;
 
             try {
@@ -2543,6 +3168,27 @@
             }
         });
 
+        txtEncodingSelect.addEventListener('change', async (e) => {
+            state.txtEncoding = e.target.value;
+            saveLocalSettings();
+            if (state.mode === 'txt' && currentTxtBuffer) {
+                await loadTxtFromArrayBuffer(currentTxtBuffer, state.currentFile, true);
+            }
+        });
+
+        zhConvertSelect.addEventListener('change', (e) => {
+            state.zhConvert = e.target.value;
+            saveLocalSettings();
+            applyCurrentZhConversion();
+            const labelMap = {
+                none: '原文顯示',
+                s2t: '簡體轉繁體',
+                t2s: '繁體轉簡體'
+            };
+            const engineHint = openccS2T ? 'OpenCC 詞彙級' : '內建離線字典';
+            showToast(`已切換為：${labelMap[state.zhConvert] || '原文顯示'}${state.zhConvert !== 'none' ? `（${engineHint}）` : ''}`);
+        });
+
         fontSizeSlider.addEventListener('input', (e) => {
             state.fontSize = parseInt(e.target.value, 10);
             fontSizeDisplay.textContent = `${state.fontSize}px`;
@@ -2553,6 +3199,13 @@
         lineHeightSlider.addEventListener('input', (e) => {
             state.lineHeight = parseFloat(e.target.value);
             lineHeightDisplay.textContent = state.lineHeight.toFixed(1);
+            applyStyles();
+            saveLocalSettings();
+        });
+
+        letterSpacingSlider.addEventListener('input', (e) => {
+            state.letterSpacing = parseFloat(e.target.value);
+            letterSpacingDisplay.textContent = `${state.letterSpacing}px`;
             applyStyles();
             saveLocalSettings();
         });
@@ -2624,7 +3277,10 @@
 
         window.addEventListener('resize', () => {
             if (state.mode === 'txt') recalculateTxtPagination(true);
-            else if (state.mode === 'epub') scheduleEpubResize();
+            else if (state.mode === 'epub') {
+                applyStyles();
+                scheduleEpubResize();
+            }
         });
 
         // === 畫線註記、統整清單與依顏色篩選跳轉 ===
@@ -2648,7 +3304,10 @@
                         rendition.annotations.highlight(
                             item.cfi,
                             {},
-                            () => { selectedCfi = item.cfi; },
+                            () => {
+                                selectedCfi = item.cfi;
+                                updateSelectionIndicator();
+                            },
                             'eink-hl',
                             { fill: item.color || '#FFFF00', 'fill-opacity': '0.45' }
                         );
@@ -2798,7 +3457,16 @@
         async function applyHighlight(color) {
             if (state.mode === 'epub' && rendition) {
                 if (!selectedCfi) {
-                    showToast('請先在內文中反白選取文字，再選擇螢光筆顏色。');
+                    try {
+                        const contentsList = rendition.getContents();
+                        if (Array.isArray(contentsList)) {
+                            contentsList.forEach(c => captureEpubSelectionFromContents(c));
+                        }
+                    } catch {}
+                }
+
+                if (!selectedCfi) {
+                    showToast('請先長按選取內文文字（按鈕顯示「已選字」），再選擇螢光筆顏色。');
                     return;
                 }
                 try {
@@ -2816,10 +3484,19 @@
                     rendition.annotations.highlight(
                         cfi,
                         {},
-                        () => { selectedCfi = cfi; },
+                        () => {
+                            selectedCfi = cfi;
+                            updateSelectionIndicator();
+                        },
                         'eink-hl',
                         { fill: color, 'fill-opacity': '0.45' }
                     );
+
+                    try {
+                        rendition.getContents().forEach(c => {
+                            if (c && c.window) c.window.getSelection().removeAllRanges();
+                        });
+                    } catch {}
 
                     const newRecord = {
                         id: `hl_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -2835,6 +3512,7 @@
                     state.highlightsByBook[state.currentFile] = list;
                     saveLocalSettings();
                     renderHighlightSummary();
+                    clearCachedSelection();
                     highlightMenu.classList.add('hidden');
                     showToast(`已加入${getColorName(color)}色畫線註記。`);
                 } catch {
@@ -2844,23 +3522,32 @@
             }
 
             const sel = window.getSelection();
-            if (!sel || sel.isCollapsed || !txtContent.contains(sel.anchorNode)) {
-                showToast('請先在內文中反白選取文字，再選擇螢光筆顏色。');
+            let activeRange = null;
+            let textSnippet = '';
+
+            if (sel && !sel.isCollapsed && sel.rangeCount > 0 && txtContent.contains(sel.anchorNode)) {
+                activeRange = sel.getRangeAt(0);
+                textSnippet = sel.toString().replace(/\s+/g, ' ').trim();
+            } else if (cachedTxtRange) {
+                activeRange = cachedTxtRange;
+                textSnippet = cachedTxtText;
+            }
+
+            if (!activeRange) {
+                showToast('請先長按選取內文文字，再選擇螢光筆顏色。');
                 return;
             }
 
             try {
-                const textSnippet = sel.toString().replace(/\s+/g, ' ').trim();
-                const range = sel.getRangeAt(0);
                 const hlId = `hl_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
                 const mark = document.createElement('mark');
                 mark.className = 'highlight-bg';
                 mark.dataset.hlId = hlId;
                 mark.style.backgroundColor = color;
-                const fragment = range.extractContents();
+                const fragment = activeRange.extractContents();
                 mark.appendChild(fragment);
-                range.insertNode(mark);
-                sel.removeAllRanges();
+                activeRange.insertNode(mark);
+                if (sel) sel.removeAllRanges();
 
                 const list = getBookHighlights();
                 list.unshift({
@@ -2874,6 +3561,7 @@
                 state.highlightsByBook[state.currentFile] = list;
                 saveLocalSettings();
                 renderHighlightSummary();
+                clearCachedSelection();
                 highlightMenu.classList.add('hidden');
                 showToast(`已加入${getColorName(color)}色畫線註記。`);
             } catch {
@@ -2892,7 +3580,7 @@
                 try {
                     rendition.annotations.remove(targetCfi, 'highlight');
                     state.highlightsByBook[state.currentFile] = list.filter(h => h && h.cfi !== targetCfi);
-                    selectedCfi = null;
+                    clearCachedSelection();
                     saveLocalSettings();
                     renderHighlightSummary();
                     highlightMenu.classList.add('hidden');
@@ -2904,18 +3592,19 @@
             }
 
             const sel = window.getSelection();
+            let targetRange = (sel && !sel.isCollapsed && sel.rangeCount > 0) ? sel.getRangeAt(0) : cachedTxtRange;
             let removedIds = [];
-            if (sel && !sel.isCollapsed) {
-                const range = sel.getRangeAt(0);
+
+            if (targetRange) {
                 txtContent.querySelectorAll('mark.highlight-bg').forEach(mark => {
-                    if (range.intersectsNode(mark)) {
+                    if (targetRange.intersectsNode(mark)) {
                         if (mark.dataset.hlId) removedIds.push(mark.dataset.hlId);
                         const parent = mark.parentNode;
                         while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
                         parent.removeChild(mark);
                     }
                 });
-                sel.removeAllRanges();
+                if (sel) sel.removeAllRanges();
             } else if (sel && sel.anchorNode) {
                 const parentMark = sel.anchorNode.nodeType === 1
                     ? sel.anchorNode.closest('mark.highlight-bg')
@@ -2934,13 +3623,16 @@
                 renderHighlightSummary();
             }
 
+            clearCachedSelection();
             highlightMenu.classList.add('hidden');
             showToast(removedIds.length > 0 ? '已取消畫線註記。' : '請先選取或點擊已畫線的文字區域。');
         }
 
         document.querySelectorAll('.color-btn').forEach(btn => {
+            btn.addEventListener('mousedown', (e) => e.preventDefault());
             btn.addEventListener('click', () => applyHighlight(btn.dataset.color));
         });
+        btnClearHighlight.addEventListener('mousedown', (e) => e.preventDefault());
         btnClearHighlight.addEventListener('click', clearHighlight);
 
         // === 書籤功能 ===
@@ -3053,6 +3745,7 @@
         initOptionalFirebase();
         restoreSavedFontsFromIndexedDB();
         initOfflineEpubEngine();
+        initChineseConverter();
         loadOptionalCloudFonts();
         registerServiceWorker();
     })();
