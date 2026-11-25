@@ -1,4 +1,6 @@
-# 📖 E-Ink 專屬離線版電子書閱讀器
+# Eink-reader-readinsky
+
+### 📖 E-Ink 專屬離線版電子書閱讀器
 
 > 專為 **電子紙平板（BOOX / HyRead / Meebook）**、**Android 手機** 與 **電腦瀏覽器** 打造的 100% 離線電子書閱讀器。
 >
