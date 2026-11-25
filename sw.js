@@ -1,10 +1,10 @@
 /**
  * E-Ink 電子書閱讀器離線快取腳本 (Service Worker)
- * 每次更新 index.html 上傳至 GitHub 時，請將下方的版本號（例如 v8 -> v9）調高，
+ * 每次更新 index.html 上傳至 GitHub 時，請將下方的版本號調高，
  * 讓電子紙或手機端自動清除舊快取並載入最新版畫面。
  */
 
-const CACHE_NAME = 'eink-reader-offline-v8';
+const CACHE_NAME = 'eink-reader-offline-v18';
 
 // 核心必備檔案清單
 const CORE_ASSETS = [
@@ -37,7 +37,6 @@ self.addEventListener('install', (event) => {
       );
     })
   );
-  // 立即啟用新版 Service Worker，無須等待舊分頁全部關閉
   self.skipWaiting();
 });
 
@@ -54,7 +53,6 @@ self.addEventListener('activate', (event) => {
       )
     )
   );
-  // 立即接管目前開啟中的頁面
   self.clients.claim();
 });
 
@@ -64,7 +62,6 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  // 僅針對同網域資源啟用離線快取，避免干擾雲端書庫或外部字體連線
   const reqUrl = new URL(event.request.url);
   if (reqUrl.origin !== self.location.origin) return;
 
@@ -76,7 +73,6 @@ self.addEventListener('fetch', (event) => {
 
       return fetch(event.request)
         .then((networkResponse) => {
-          // 若成功從網路取得同網域靜態資源，順手寫入快取供下次離線使用
           if (networkResponse && networkResponse.status === 200) {
             const responseClone = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
@@ -85,10 +81,7 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         })
-        .catch(() => {
-          // 離線且查無該路徑快取時，回傳主程式頁面
-          return caches.match('./index.html');
-        });
+        .catch(() => caches.match('./index.html'));
     })
   );
 });
