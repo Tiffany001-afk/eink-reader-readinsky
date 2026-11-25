@@ -3332,6 +3332,27 @@
             return css;
         }
 
+        function sanitizeEpubInlineStyles(doc) {
+            if (!doc || !doc.body) return;
+            const styledEls = doc.body.querySelectorAll('[style]');
+            styledEls.forEach((el) => {
+                const tag = el.tagName ? el.tagName.toLowerCase() : '';
+                if (tag === 'img' || tag === 'svg' || el.closest('svg')) return;
+                el.style.removeProperty('background');
+                el.style.removeProperty('background-color');
+                el.style.removeProperty('color');
+                el.style.removeProperty('font-size');
+                el.style.removeProperty('font-family');
+                el.style.removeProperty('line-height');
+                el.style.removeProperty('letter-spacing');
+            });
+            doc.body.querySelectorAll('font[color], font[face], font[size]').forEach((el) => {
+                el.removeAttribute('color');
+                el.removeAttribute('face');
+                el.removeAttribute('size');
+            });
+        }
+
         function enforceEpubVerticalTopAlignment(doc) {
             if (!doc || !doc.documentElement || !doc.body) return;
             const metrics = computePageBoxMetrics();
@@ -3393,6 +3414,7 @@
                 ${getEpubCustomFontCss()}
                 html, body {
                     background: transparent !important;
+                    background-color: transparent !important;
                     color: ${fgColor} !important;
                     font-family: ${fontFam} !important;
                     font-size: ${state.fontSize}px !important;
@@ -3402,6 +3424,32 @@
                     margin: 0 !important;
                     padding: 0 !important;
                     box-sizing: border-box !important;
+                }
+                body p, body div, body span, body font, body section, body article,
+                body li, body blockquote, body td, body th, body pre, body em, body strong,
+                body b, body i, body u, body a, body ruby, body rb,
+                body h1, body h2, body h3, body h4, body h5, body h6 {
+                    background: transparent !important;
+                    background-color: transparent !important;
+                    color: ${fgColor} !important;
+                    font-family: ${fontFam} !important;
+                    letter-spacing: ${state.letterSpacing}px !important;
+                }
+                body p, body div, body span, body font, body li, body blockquote,
+                body td, body th, body em, body strong, body b, body i, body u, body a {
+                    font-size: ${state.fontSize}px !important;
+                    line-height: ${lineStepPx}px !important;
+                }
+                body h1 { font-size: ${Math.round(state.fontSize * 1.35)}px !important; line-height: ${Math.round(lineStepPx * 1.25)}px !important; }
+                body h2 { font-size: ${Math.round(state.fontSize * 1.2)}px !important; line-height: ${Math.round(lineStepPx * 1.15)}px !important; }
+                body h3, body h4, body h5, body h6 { font-size: ${Math.round(state.fontSize * 1.1)}px !important; line-height: ${lineStepPx}px !important; }
+                body rt {
+                    font-size: 0.55em !important;
+                    line-height: 1.2 !important;
+                }
+                body sup, body sub {
+                    font-size: 0.72em !important;
+                    line-height: 1 !important;
                 }
                 ${isVertical ? `
                 html, body {
@@ -3464,6 +3512,7 @@
                     doc.head.appendChild(styleEl);
                 }
                 styleEl.textContent = styleText;
+                sanitizeEpubInlineStyles(doc);
                 enforceEpubVerticalTopAlignment(doc);
                 fitEpubImagesToViewport(doc);
                 convertDomTextNodes(doc, state.zhConvert);

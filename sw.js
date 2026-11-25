@@ -4,7 +4,7 @@
  * 讓電子紙或手機端自動清除舊快取並載入最新版畫面。
  */
 
-const CACHE_NAME = 'eink-reader-offline-v18';
+const CACHE_NAME = 'eink-reader-offline-v19';
 
 // 核心必備檔案清單
 const CORE_ASSETS = [
