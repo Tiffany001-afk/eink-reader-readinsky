@@ -890,6 +890,9 @@
         let epubBlobCache = new Map();
         let epubSpineWeights = [];
         let epubTurning = false;
+        let epubRawBuffer = null;
+        let epubRelocateResolver = null;
+        let layoutRefreshTimer = null;
 
         let txtRawBuffer = null;
         let txtFullText = '';
@@ -1555,14 +1558,37 @@
         }
 
         /* =========================================================
-           EPUB 渲染引擎（按需圖片載入、防白底、直排頂對齊、防卡死）
+           EPUB 渲染引擎（按需圖片載入、防白底、直橫排精準翻頁不亂跳）
            ========================================================= */
+        function buildEpubThemeObject() {
+            const cs = getComputedStyle(document.body);
+            const fg = cs.getPropertyValue('--fg').trim();
+            const fontStack = getFontStack();
+            const linePx = Math.max(16, Math.round(settings.fontSize * settings.lineHeight));
+            const isVert = settings.direction === 'vertical';
+            return {
+                'html, body': {
+                    'background': 'transparent !important',
+                    'background-color': 'transparent !important',
+                    'color': `${fg} !important`,
+                    'font-family': `${fontStack} !important`,
+                    'font-size': `${settings.fontSize}px !important`,
+                    'line-height': `${linePx}px !important`,
+                    'letter-spacing': `${settings.letterSpacing}px !important`,
+                    'writing-mode': `${isVert ? 'vertical-rl' : 'horizontal-tb'} !important`,
+                    '-webkit-writing-mode': `${isVert ? 'vertical-rl' : 'horizontal-tb'} !important`,
+                    'direction': 'ltr !important'
+                }
+            };
+        }
+
         async function openEpubBook(buffer, jumpTarget) {
             await window.__engineReadyPromise;
             if (!window.ePub || !window.JSZip) {
                 showToast('EPUB 引擎尚未載入，請確認 libs 資料夾或網路');
                 return;
             }
+            epubRawBuffer = buffer;
             document.getElementById('txt-viewer').classList.add('hidden');
             const viewerEl = document.getElementById('epub-viewer');
             viewerEl.classList.remove('hidden');
@@ -1601,21 +1627,36 @@
             epubSpineWeights.total = Math.max(1, totalW);
 
             const box = layoutViewportFrame();
+            const isVert = settings.direction === 'vertical';
             epubRendition = epubBook.renderTo('epub-viewer', {
                 width: box.width,
                 height: box.height,
                 flow: 'paginated',
                 spread: 'none',
+                manager: 'default',
+                defaultDirection: isVert ? 'rtl' : 'ltr',
                 allowScriptedContent: false
             });
+
+            // 先註冊預設字體與排版主題，讓 epub.js 計算分頁前就套用正確尺寸
+            epubRendition.themes.default(buildEpubThemeObject());
 
             epubRendition.hooks.content.register((contents) => {
                 applyEpubContentFixes(contents);
             });
 
+            // 僅在章節渲染完成時套用畫線，避免每次翻頁重繪造成跳動
+            epubRendition.on('rendered', () => {
+                applyEpubSavedHighlights();
+            });
+
             epubRendition.on('relocated', (loc) => {
                 updateEpubProgress(loc);
-                applyEpubSavedHighlights();
+                if (epubRelocateResolver) {
+                    const fn = epubRelocateResolver;
+                    epubRelocateResolver = null;
+                    fn(loc);
+                }
             });
 
             epubRendition.on('selected', (cfiRange, contents) => {
@@ -1650,7 +1691,6 @@
                 if (matched) startTarget = matched.href;
             }
             await epubRendition.display(startTarget).catch(() => epubRendition.display());
-            applyEpubThemeAndLayout();
         }
 
         function findZipPath(rawSrc, baseDir = '') {
@@ -1691,6 +1731,30 @@
             const isVert = settings.direction === 'vertical';
             const fontStack = getFontStack();
             const linePx = Math.max(16, Math.round(settings.fontSize * settings.lineHeight));
+            const frameRect = document.getElementById('viewport-frame').getBoundingClientRect();
+            const boxH = Math.max(180, Math.floor(frameRect.height));
+
+            // 橫排模式不可覆寫 html/body 的 padding 與 column-width，否則會破壞 epub.js 分頁步距
+            // 直排模式解除 CSS 多欄改以自然 vertical-rl 橫向流式對齊整數行寬
+            const layoutSpecificCss = isVert ? `
+                html, body {
+                    writing-mode: vertical-rl !important;
+                    -webkit-writing-mode: vertical-rl !important;
+                    direction: ltr !important;
+                    height: ${boxH}px !important;
+                    column-width: auto !important;
+                    -webkit-column-width: auto !important;
+                    column-count: auto !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+            ` : `
+                html, body {
+                    writing-mode: horizontal-tb !important;
+                    -webkit-writing-mode: horizontal-tb !important;
+                    direction: ltr !important;
+                }
+            `;
 
             const css = `
                 html, body {
@@ -1701,12 +1765,8 @@
                     font-size: ${settings.fontSize}px !important;
                     line-height: ${linePx}px !important;
                     letter-spacing: ${settings.letterSpacing}px !important;
-                    writing-mode: ${isVert ? 'vertical-rl' : 'horizontal-tb'} !important;
-                    -webkit-writing-mode: ${isVert ? 'vertical-rl' : 'horizontal-tb'} !important;
-                    direction: ltr !important;
-                    margin: 0 !important;
-                    padding: 0 !important;
                 }
+                ${layoutSpecificCss}
                 p, div, span, font, li, blockquote, section, article, td, th {
                     background: transparent !important;
                     background-color: transparent !important;
@@ -1725,6 +1785,7 @@
                     break-inside: avoid !important;
                 }
             `;
+            epubRendition.themes.default(buildEpubThemeObject());
             epubRendition.getContents().forEach(c => {
                 const doc = c.document;
                 if (!doc) return;
@@ -1772,6 +1833,7 @@
             const box = document.getElementById('viewport-frame').getBoundingClientRect();
             const maxW = Math.max(120, Math.floor(box.width - 8));
             const maxH = Math.max(120, Math.floor(box.height - 8));
+            let swappedImages = false;
 
             const imgs = Array.from(doc.querySelectorAll('img'));
             for (const img of imgs) {
@@ -1779,7 +1841,7 @@
                 if (rawSrc && !rawSrc.startsWith('blob:') && !rawSrc.startsWith('data:')) {
                     const zp = findZipPath(rawSrc, baseDir);
                     const url = await resolveZipBlobUrl(zp);
-                    if (url) img.src = url;
+                    if (url) { img.src = url; swappedImages = true; }
                 }
                 const isInlineIcon = img.naturalWidth > 0 && img.naturalWidth < 40 && img.naturalHeight < 40;
                 if (!isInlineIcon) {
@@ -1802,6 +1864,7 @@
                     if (url) {
                         simg.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url);
                         simg.setAttribute('href', url);
+                        swappedImages = true;
                     }
                 }
                 const svg = simg.closest('svg');
@@ -1814,7 +1877,8 @@
                     svg.style.margin = '0 auto';
                 }
             }
-            if (typeof contents.expand === 'function') {
+            // 僅在真的非同步補載了圖片時才重新展開容器，避免無謂重算導致頁碼跳動
+            if (swappedImages && typeof contents.expand === 'function') {
                 try { contents.expand(); } catch (e) {}
             }
         }
@@ -1846,19 +1910,35 @@
                 const before = epubRendition.currentLocation();
                 const beforeCfi = before && before.start ? before.start.cfi : '';
                 const beforeIdx = before && before.start ? before.start.index : 0;
+                const beforeDisp = (before && before.start && before.start.displayed) || { page: 1, total: 1 };
+
+                // 等待真實的 relocated 事件（最長 450ms），避免太早判斷而誤跳章節
+                const waitRelocate = new Promise((resolve) => {
+                    let done = false;
+                    const timer = setTimeout(() => {
+                        if (!done) { done = true; epubRelocateResolver = null; resolve(null); }
+                    }, 450);
+                    epubRelocateResolver = (loc) => {
+                        if (!done) { done = true; clearTimeout(timer); resolve(loc); }
+                    };
+                });
 
                 if (dir === 'next') await epubRendition.next();
                 else await epubRendition.prev();
 
-                await new Promise(r => setTimeout(r, 90));
-                const after = epubRendition.currentLocation();
+                const relocatedLoc = await waitRelocate;
+                const after = relocatedLoc || epubRendition.currentLocation();
                 const afterCfi = after && after.start ? after.start.cfi : '';
 
-                // 若原地卡住，安全跨入下一個或上一個章節
-                if (beforeCfi && afterCfi === beforeCfi && epubBook && epubBook.spine) {
+                // 只有在「確實位於本章邊界」且原地未動時，才安全切換到相鄰章節，絕不在章節中間亂跳
+                const atBoundary = dir === 'next'
+                    ? (beforeDisp.page >= beforeDisp.total)
+                    : (beforeDisp.page <= 1);
+                if (atBoundary && beforeCfi && afterCfi === beforeCfi && epubBook && epubBook.spine) {
                     const targetIdx = dir === 'next' ? beforeIdx + 1 : beforeIdx - 1;
                     const item = epubBook.spine.get(targetIdx);
                     if (item) await epubRendition.display(item.href);
+                    else showToast(dir === 'next' ? '已經是最後一頁囉' : '已經是第一頁囉');
                 }
             } catch (e) {
             } finally {
@@ -2225,12 +2305,33 @@
 
         function refreshReaderLayout() {
             if (!currentBook) return;
-            const box = layoutViewportFrame();
-            if (currentBookType === 'epub' && epubRendition) {
-                epubRendition.resize(box.width, box.height);
-                applyEpubThemeAndLayout();
-            } else if (currentBookType === 'txt') {
-                repaginateTxt(currentBook.lastTxtRatio || 0);
+            clearTimeout(layoutRefreshTimer);
+            layoutRefreshTimer = setTimeout(() => {
+                const box = layoutViewportFrame();
+                if (currentBookType === 'epub' && epubRendition) {
+                    const keepCfi = currentBook.lastCfi;
+                    applyEpubThemeAndLayout();
+                    epubRendition.resize(box.width, box.height);
+                    if (keepCfi) epubRendition.display(keepCfi).catch(() => {});
+                } else if (currentBookType === 'txt') {
+                    repaginateTxt(currentBook.lastTxtRatio || 0);
+                }
+            }, 120);
+        }
+
+        async function switchReadingDirection(newDir) {
+            if (settings.direction === newDir) return;
+            settings.direction = newDir;
+            saveSettings();
+            applyVisualTheme();
+            if (currentBook && currentBookType === 'epub' && epubRawBuffer) {
+                // 切換直橫排時重新初始化 EPUB 渲染器，確保 epub.js 翻頁方向與捲動軸完全同步
+                const buf = epubRawBuffer;
+                cleanupCurrentReader();
+                layoutViewportFrame();
+                await openEpubBook(buf);
+            } else {
+                refreshReaderLayout();
             }
         }
 
@@ -2409,8 +2510,8 @@
             };
 
             // 閱讀設定控制項
-            document.getElementById('dir-horizontal-btn').onclick = () => { settings.direction = 'horizontal'; saveSettings(); applyVisualTheme(); refreshReaderLayout(); };
-            document.getElementById('dir-vertical-btn').onclick = () => { settings.direction = 'vertical'; saveSettings(); applyVisualTheme(); refreshReaderLayout(); };
+            document.getElementById('dir-horizontal-btn').onclick = () => switchReadingDirection('horizontal');
+            document.getElementById('dir-vertical-btn').onclick = () => switchReadingDirection('vertical');
             document.getElementById('margin-v-range').oninput = (e) => { settings.marginV = +e.target.value; saveSettings(); applyVisualTheme(); refreshReaderLayout(); };
             document.getElementById('margin-h-range').oninput = (e) => { settings.marginH = +e.target.value; saveSettings(); applyVisualTheme(); refreshReaderLayout(); };
             document.getElementById('page-fx-select').onchange = (e) => { settings.pageFx = e.target.value; saveSettings(); playPageFx('next'); };
