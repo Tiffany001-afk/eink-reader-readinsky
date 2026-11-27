@@ -112,6 +112,10 @@
         }
         button, input, select { font-family: inherit; color: inherit; }
         .hidden { display: none !important; }
+        .sr-file-input {
+            position: fixed; left: -9999px; top: -9999px;
+            width: 1px; height: 1px; opacity: 0; pointer-events: none;
+        }
 
         /* 按鈕共用樣式 */
         .ui-btn {
@@ -137,11 +141,11 @@
             padding: 10px 16px; background: var(--surface);
             border-bottom: 1.5px solid var(--border-strong); gap: 8px; flex-shrink: 0;
         }
-        .shelf-title-wrap { display: flex; align-items: center; gap: 10px; min-width: 0; }
-        .shelf-title { font-size: 18px; font-weight: 800; color: var(--accent-strong); letter-spacing: .5px; }
+        .shelf-title-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .shelf-title { font-size: 18px; font-weight: 800; color: var(--accent-strong); letter-spacing: .5px; white-space: nowrap; }
         .shelf-count-badge {
             font-size: 12px; padding: 2px 9px; border-radius: 999px;
-            border: 1px solid var(--border-strong); background: var(--bg); color: var(--muted);
+            border: 1px solid var(--border-strong); background: var(--bg); color: var(--muted); white-space: nowrap;
         }
         .shelf-actions { display: flex; align-items: center; gap: 7px; flex-wrap: nowrap; }
         .shelf-main {
@@ -160,10 +164,19 @@
                 grid-template-rows: repeat(3, minmax(0, 1fr));
                 gap: 10px;
             }
-            .shelf-header { padding: 8px 10px; }
-            .shelf-title { font-size: 15px; }
-            .shelf-actions .ui-btn { padding: 5px 8px; font-size: 12px; }
+            .shelf-header { padding: 7px 6px; gap: 4px; }
+            .shelf-title-wrap { gap: 4px; }
+            .shelf-title { font-size: 13.5px; }
+            .shelf-count-badge { display: none; }
+            .shelf-header .ui-btn { padding: 4px 6px; font-size: 11px; gap: 3px; border-width: 1px; }
+            .shelf-header .ui-btn.icon-only { padding: 4px 6px; }
+            .shelf-header .btn-sub { display: none; }
+            .shelf-actions { gap: 3px; }
             .shelf-main { padding: 10px; }
+        }
+        @media (max-width: 400px) {
+            .shelf-title { font-size: 12px; }
+            .shelf-header .ui-btn { padding: 3px 5px; font-size: 10px; }
         }
         .book-slot {
             position: relative; background: var(--surface-soft);
@@ -232,6 +245,143 @@
             border-left: 1px solid var(--border); border-right: 1px solid var(--border);
             font-size: 13px; font-weight: 600; color: var(--fg);
         }
+
+        /* =========================================================
+           閱讀統計視圖（月曆＋圖示狀況歸納表）
+           ========================================================= */
+        #stats-view {
+            position: fixed; inset: 0; display: flex; flex-direction: column;
+            background: var(--bg); z-index: 15;
+        }
+        .stats-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 16px; background: var(--surface);
+            border-bottom: 1.5px solid var(--border-strong); gap: 8px; flex-shrink: 0;
+        }
+        .stats-month-nav { display: flex; align-items: center; gap: 6px; }
+        .stats-month-label { font-size: 15px; font-weight: 800; color: var(--accent-strong); min-width: 102px; text-align: center; }
+        .stats-body {
+            flex: 1; overflow-y: auto; padding: 16px;
+            display: flex; flex-direction: column; gap: 16px;
+            max-width: 980px; width: 100%; margin: 0 auto;
+        }
+        .stats-card {
+            background: var(--surface-soft); border: 1.5px solid var(--border);
+            border-radius: 14px; padding: 14px;
+        }
+        .stats-card-title {
+            font-size: 15px; font-weight: 800; color: var(--accent-strong);
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 12px; gap: 8px; flex-wrap: wrap;
+        }
+        .stats-card-title-left { display: flex; align-items: center; gap: 7px; }
+
+        /* 月曆格線 */
+        .cal-weekdays {
+            display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 6px; margin-bottom: 6px; text-align: center;
+            font-size: 12px; font-weight: 700; color: var(--muted);
+        }
+        .cal-grid {
+            display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 6px;
+        }
+        .cal-cell {
+            min-height: 68px; border-radius: 10px; border: 1.5px solid var(--border);
+            background: var(--bg); padding: 5px 6px; cursor: pointer;
+            display: flex; flex-direction: column; justify-content: space-between;
+            transition: background .15s, border-color .15s; overflow: hidden;
+        }
+        .cal-cell:hover { background: var(--surface-hover); }
+        .cal-cell.empty { background: transparent; border-color: transparent; cursor: default; pointer-events: none; }
+        .cal-cell.today { border-color: var(--accent-strong); box-shadow: inset 0 0 0 1px var(--accent-strong); }
+        .cal-cell.selected { background: var(--surface-hover); border-color: var(--accent-strong); border-width: 2px; }
+        .cal-cell.has-read { background: var(--surface); }
+        .cal-day-top { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 700; }
+        .cal-min-pill {
+            font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 99px;
+            background: var(--accent-strong); color: #fff; line-height: 1.3;
+        }
+        .cal-book-preview {
+            font-size: 10.5px; color: var(--muted); line-height: 1.25;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            margin-top: 3px;
+        }
+        @media (max-width: 640px) {
+            .stats-header { padding: 8px 10px; }
+            .stats-body { padding: 10px; gap: 12px; }
+            .cal-cell { min-height: 52px; padding: 4px; }
+            .cal-book-preview { display: none; }
+            .cal-min-pill { font-size: 9px; padding: 1px 4px; }
+            .stats-month-label { font-size: 13px; min-width: 82px; }
+        }
+
+        /* 當日明細區 */
+        .day-detail-box {
+            margin-top: 12px; padding-top: 12px; border-top: 1.5px dashed var(--border);
+        }
+        .day-detail-header {
+            font-size: 13.5px; font-weight: 800; color: var(--fg);
+            display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
+        }
+        .day-book-row {
+            display: flex; align-items: center; justify-content: space-between; gap: 10px;
+            padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border);
+            background: var(--bg); margin-bottom: 6px; cursor: pointer;
+        }
+        .day-book-row:hover { background: var(--surface-hover); }
+        .day-book-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .day-book-name { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .day-book-time { font-size: 12px; font-weight: 700; color: var(--accent-strong); white-space: nowrap; }
+
+        /* KPI 圖示卡片 */
+        .kpi-grid {
+            display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;
+        }
+        @media (max-width: 640px) { .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        .kpi-card {
+            background: var(--surface-soft); border: 1.5px solid var(--border);
+            border-radius: 12px; padding: 12px; display: flex; align-items: center; gap: 10px;
+        }
+        .kpi-icon {
+            width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+            background: var(--surface); border: 1px solid var(--border-strong);
+            color: var(--accent-strong); display: flex; align-items: center; justify-content: center;
+        }
+        .kpi-val { font-size: 18px; font-weight: 800; color: var(--fg); line-height: 1.2; }
+        .kpi-lbl { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+        /* 每日閱讀時長柱狀圖 */
+        .bar-chart-wrap {
+            width: 100%; overflow-x: auto; padding-bottom: 4px;
+        }
+        .bar-chart {
+            display: flex; align-items: flex-end; gap: 4px; height: 130px;
+            min-width: 420px; padding: 14px 4px 2px;
+            border-bottom: 1.5px solid var(--border);
+        }
+        .bar-col {
+            flex: 1; height: 100%; display: flex; flex-direction: column;
+            align-items: center; justify-content: flex-end; gap: 4px; cursor: pointer;
+        }
+        .bar-fill {
+            width: 100%; max-width: 18px; border-radius: 5px 5px 0 0;
+            background: var(--accent); min-height: 2px; transition: height .2s;
+        }
+        .bar-col.selected .bar-fill { background: var(--accent-strong); }
+        .bar-val-lbl { font-size: 9px; color: var(--muted); height: 12px; line-height: 12px; }
+        .bar-day-lbl { font-size: 10px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+
+        /* 書籍閱讀時間排行表 */
+        .rank-row {
+            display: flex; flex-direction: column; gap: 5px;
+            padding: 9px 10px; border-radius: 9px; border: 1px solid var(--border);
+            background: var(--bg); margin-bottom: 8px;
+        }
+        .rank-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
+        .rank-title { font-weight: 700; display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .rank-bar-track { width: 100%; height: 7px; border-radius: 99px; background: var(--surface); overflow: hidden; }
+        .rank-bar-fill { height: 100%; background: var(--accent-strong); border-radius: 99px; }
 
         /* =========================================================
            書架小幫手（可拖曳＋對話氣泡）
@@ -398,6 +548,7 @@
         .setting-select, .setting-input {
             width: 100%; padding: 7px 9px; border-radius: 7px;
             border: 1.5px solid var(--border-strong); background: var(--surface-soft); font-size: 13px;
+            min-width: 0;
         }
         .setting-range { width: 100%; accent-color: var(--accent-strong); cursor: pointer; }
         .btn-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
@@ -444,6 +595,8 @@
             box-shadow: 0 12px 32px rgba(0,0,0,.22);
         }
         .modal-body { padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .search-input-row { display: flex; gap: 6px; width: 100%; }
+        .search-input-row .setting-input { flex: 1; min-width: 0; }
         .search-hit-mark { background: #FFF2A6; color: #222; padding: 0 2px; border-radius: 3px; font-weight: 700; }
 
         /* 底部提示 Toast */
@@ -461,10 +614,10 @@
     </style>
 </head>
 <body>
-    <!-- 隱藏檔案輸入 -->
-    <input type="file" id="file-input" accept=".epub,.txt" class="hidden">
-    <input type="file" id="font-file-input" accept=".ttf,.otf,.woff,.woff2" class="hidden">
-    <input type="file" id="bg-file-input" accept="image/*" class="hidden">
+    <!-- 隱藏檔案輸入（不使用 display:none 也不限制 accept，確保 Android/iOS 手機都能順利選取 TXT 與 EPUB） -->
+    <input type="file" id="file-input" class="sr-file-input">
+    <input type="file" id="font-file-input" class="sr-file-input">
+    <input type="file" id="bg-file-input" accept="image/*" class="sr-file-input">
 
     <!-- =========================================================
          六宮格書架畫面
@@ -473,6 +626,15 @@
         <header class="shelf-header">
             <div class="shelf-title-wrap">
                 <span class="shelf-title">我的書架</span>
+                <button class="ui-btn" id="shelf-stats-btn" title="查看閱讀月曆與統計報表">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                    閱讀統計
+                </button>
                 <span id="shelf-count-badge" class="shelf-count-badge">0 本書</span>
             </div>
             <div class="shelf-actions">
@@ -495,6 +657,80 @@
             <div id="shelf-page-info" class="shelf-page-info">書架 第 1 / 1 頁</div>
             <button id="shelf-next-btn" class="shelf-nav-btn">下一頁</button>
         </footer>
+    </section>
+
+    <!-- =========================================================
+         閱讀統計畫面（日曆＋每日閱讀明細＋圖示狀況歸納表）
+         ========================================================= -->
+    <section id="stats-view" class="hidden">
+        <header class="stats-header">
+            <div class="shelf-title-wrap">
+                <button class="ui-btn" id="stats-back-btn">← 回到書架</button>
+                <span class="shelf-title">閱讀統計</span>
+            </div>
+            <div class="stats-month-nav">
+                <button class="ui-btn" id="stats-prev-month">◀</button>
+                <span class="stats-month-label" id="stats-month-label">2026年 11月</span>
+                <button class="ui-btn" id="stats-next-month">▶</button>
+                <button class="ui-btn" id="stats-today-btn">本月</button>
+            </div>
+        </header>
+        <main class="stats-body">
+            <!-- 1. 最上方：互動式閱讀月曆 + 當日閱讀明細 -->
+            <div class="stats-card">
+                <div class="stats-card-title">
+                    <div class="stats-card-title-left">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                        </svg>
+                        <span>每日閱讀日曆（點擊日期查看明細）</span>
+                    </div>
+                    <span id="cal-month-badge" style="font-size:12px;color:var(--muted);font-weight:600;"></span>
+                </div>
+                <div class="cal-weekdays">
+                    <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+                </div>
+                <div id="cal-grid" class="cal-grid"></div>
+                <div id="day-detail-box" class="day-detail-box"></div>
+            </div>
+
+            <!-- 2. 圖示數據總覽（KPI 卡片） -->
+            <div class="kpi-grid" id="stats-kpi-grid"></div>
+
+            <!-- 3. 本月每日閱讀時長柱狀圖 -->
+            <div class="stats-card">
+                <div class="stats-card-title">
+                    <div class="stats-card-title-left">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="20" x2="18" y2="10"></line>
+                            <line x1="12" y1="20" x2="12" y2="4"></line>
+                            <line x1="6" y1="20" x2="6" y2="14"></line>
+                        </svg>
+                        <span>本月每日閱讀時長趨勢（分鐘）</span>
+                    </div>
+                </div>
+                <div class="bar-chart-wrap">
+                    <div id="stats-bar-chart" class="bar-chart"></div>
+                </div>
+            </div>
+
+            <!-- 4. 本月書籍閱讀時間歸納排行表 -->
+            <div class="stats-card">
+                <div class="stats-card-title">
+                    <div class="stats-card-title-left">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                        </svg>
+                        <span>本月閱讀書籍狀況歸納表</span>
+                    </div>
+                </div>
+                <div id="stats-book-rank"></div>
+            </div>
+        </main>
     </section>
 
     <!-- 書架小幫手（僅出現於書架，可拖曳） -->
@@ -787,7 +1023,7 @@
             </div>
             <div class="modal-body">
                 <div id="helper-modal-stats" style="font-size:12.5px;padding:8px 10px;border-radius:8px;background:var(--surface-soft);border:1px solid var(--border);"></div>
-                <div style="display:flex;gap:6px;">
+                <div class="search-input-row">
                     <input type="text" id="helper-search-input" class="setting-input" placeholder="輸入書名或書中關鍵字...">
                     <button class="ui-btn active" id="helper-search-go-btn">搜尋</button>
                 </div>
@@ -850,6 +1086,7 @@
            ========================================================= */
         const STORAGE_SETTINGS = 'eink_reader_settings_v4';
         const STORAGE_STATS = 'eink_reader_monthly_stats_v1';
+        const STORAGE_DAILY_LOGS = 'eink_reader_daily_logs_v1';
         const STORAGE_LAST_STATE = 'eink_reader_last_state_v1';
         const HL_COLORS = [
             { id: 'pink', name: '粉紅', hex: 'rgba(255, 182, 193, 0.55)' },
@@ -881,8 +1118,8 @@
 
         let shelfBooks = [];
         let shelfPage = 0;
-        let currentBook = null; // { id, title, format, ... }
-        let currentBookType = null; // 'epub' | 'txt'
+        let currentBook = null;
+        let currentBookType = null;
         let epubBook = null;
         let epubRendition = null;
         let epubZip = null;
@@ -899,10 +1136,16 @@
         let txtPages = [];
         let txtPageIdx = 0;
 
-        let pendingSelection = null; // { text, cfi?, pageIdx? }
+        let pendingSelection = null;
         let hlFilterColor = 'all';
         let readingTimer = null;
-        let hasShownLoginReminder = false;
+        let modalOpenedAt = 0;
+
+        // 閱讀統計月曆狀態
+        const nowDate = new Date();
+        let statsYear = nowDate.getFullYear();
+        let statsMonth = nowDate.getMonth();
+        let statsSelectedDateKey = getDateKey(nowDate);
 
         /* =========================================================
            IndexedDB 離線資料庫（書籍、檔案、字體、背景、書籤與畫線）
@@ -963,7 +1206,7 @@
         }
 
         /* =========================================================
-           工具函式：Toast、簡繁離線轉換、文字編碼智慧偵測
+           工具函式：Toast、跨裝置檔案讀取、簡繁離線轉換、文字編碼智慧偵測
            ========================================================= */
         let toastTimer = null;
         function showToast(msg, ms = 2200) {
@@ -974,8 +1217,42 @@
             toastTimer = setTimeout(() => el.classList.remove('show'), ms);
         }
 
+        function readFileAsArrayBuffer(file) {
+            if (file && typeof file.arrayBuffer === 'function') {
+                return file.arrayBuffer().catch(() => new Promise((res, rej) => {
+                    const fr = new FileReader();
+                    fr.onload = () => res(fr.result);
+                    fr.onerror = () => rej(fr.error);
+                    fr.readAsArrayBuffer(file);
+                }));
+            }
+            return new Promise((res, rej) => {
+                const fr = new FileReader();
+                fr.onload = () => res(fr.result);
+                fr.onerror = () => rej(fr.error);
+                fr.readAsArrayBuffer(file);
+            });
+        }
+
         function saveSettings() {
             localStorage.setItem(STORAGE_SETTINGS, JSON.stringify(settings));
+        }
+
+        function getDateKey(d = new Date()) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        function formatMinutesText(seconds) {
+            if (!seconds || seconds <= 0) return '0 分鐘';
+            if (seconds < 60) return '約 1 分鐘內';
+            const mins = Math.round(seconds / 60);
+            if (mins < 60) return `約 ${mins} 分鐘`;
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            return m ? `約 ${h} 小時 ${m} 分鐘` : `約 ${h} 小時`;
         }
 
         // 精簡離線簡繁字庫（無網路時自動啟用，連線時升級為 OpenCC）
@@ -1010,19 +1287,16 @@
             if (forceEnc && forceEnc !== 'auto') {
                 try { return { text: new TextDecoder(forceEnc).decode(bytes), encoding: forceEnc.toUpperCase() }; } catch (e) {}
             }
-            // 1. BOM 偵測
             if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF)
                 return { text: new TextDecoder('utf-8').decode(bytes), encoding: 'UTF-8 (BOM)' };
             if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE)
                 return { text: new TextDecoder('utf-16le').decode(bytes), encoding: 'UTF-16LE' };
             if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF)
                 return { text: new TextDecoder('utf-16be').decode(bytes), encoding: 'UTF-16BE' };
-            // 2. 嚴格 UTF-8
             try {
                 const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
                 return { text, encoding: 'UTF-8' };
             } catch (e) {}
-            // 3. 評分比較 GB18030 與 Big5
             const sample = bytes.subarray(0, Math.min(bytes.length, 32768));
             const commonChars = /[的一是不了在人有我他這個們中來上大為和國地到以說時要就出會可也你對生能而子那得於著下自之年過發後作里用道行所然家種事成方多經麼去法學如都同現當沒動面起看定天分還進好小部其些主樣理心她本前開但因只從想實日軍者意無力它與長把機十民第公此已工使情明性知全三又關點正業外將兩高間由問很最重並物手應戰向頭文體政美相見被利什二等產或新己制身果加西斯月話合回特代內信表化老給世位次度門任常先海通教兒原東聲提立及比員解水名真論處走義各入幾口認條平系氣題活爾更別打女變四神總何電數安少報才結反受目太量再感建務做接必場件計管期市直德資命山金指克許統區保至隊形社便空決治展馬科司五基眼書非則聽白卻界達光放強即像難且權思王象完設式色路記南品住告類求據程北邊死張該交規萬取拉格望覺術領共確傳師觀清今切院讓識候帶導爭運笑飛風步改收根幹造言聯持組每濟車親極林服快辦議往元英士證近失轉夫令準布始怎呢存未遠叫台單影具羅字愛擊流備兵連調深商算質團集百需價花黨華城石級整府離況亞請技際約示復病息究線似官火斷精滿支視消越器容照須九增研寫稱企八功嗎包片史委乎查輕易早曾除農找裝廣顯吧阿李標談吃圖念六引歷首醫局突專費號另週造，。！？「」『』、：；]/g;
             const candidates = ['gb18030', 'big5'];
@@ -1040,27 +1314,62 @@
         }
 
         /* =========================================================
-           每月閱讀統計（紀錄本月讀了幾本書 & 幾分鐘）
+           每日與每月閱讀統計紀錄引擎
            ========================================================= */
         function getCurrentMonthKey() {
             const d = new Date();
             return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         }
+        function getDailyLogs() {
+            try { return JSON.parse(localStorage.getItem(STORAGE_DAILY_LOGS) || '{}'); }
+            catch (e) { return {}; }
+        }
+        function saveDailyLogs(logs) {
+            localStorage.setItem(STORAGE_DAILY_LOGS, JSON.stringify(logs));
+        }
         function getMonthlyStats() {
             const mk = getCurrentMonthKey();
             let data = JSON.parse(localStorage.getItem(STORAGE_STATS) || '{}');
             if (data.month !== mk) data = { month: mk, books: [], seconds: 0 };
-            return data;
+            const logs = getDailyLogs();
+            let daySec = 0;
+            const bookSet = new Set(data.books || []);
+            Object.keys(logs).forEach(k => {
+                if (k.startsWith(mk + '-')) {
+                    daySec += logs[k].totalSeconds || 0;
+                    Object.keys(logs[k].books || {}).forEach(bid => bookSet.add(bid));
+                }
+            });
+            return {
+                month: mk,
+                books: Array.from(bookSet),
+                seconds: Math.max(data.seconds || 0, daySec)
+            };
         }
         function saveMonthlyStats(data) {
             localStorage.setItem(STORAGE_STATS, JSON.stringify(data));
             renderMonthlyStatsUI();
         }
-        function recordBookReadThisMonth(bookId) {
+        function recordBookReadThisMonth(bookMeta) {
+            if (!bookMeta || !bookMeta.id) return;
             const st = getMonthlyStats();
-            if (bookId && !st.books.includes(bookId)) {
-                st.books.push(bookId);
+            if (!st.books.includes(bookMeta.id)) {
+                st.books.push(bookMeta.id);
                 saveMonthlyStats(st);
+            }
+            const logs = getDailyLogs();
+            const todayKey = getDateKey(new Date());
+            if (!logs[todayKey]) logs[todayKey] = { totalSeconds: 0, books: {} };
+            if (!logs[todayKey].books[bookMeta.id]) {
+                logs[todayKey].books[bookMeta.id] = {
+                    title: bookMeta.title || '未命名書籍',
+                    format: bookMeta.format || 'epub',
+                    seconds: 0
+                };
+                saveDailyLogs(logs);
+            } else {
+                logs[todayKey].books[bookMeta.id].title = bookMeta.title || logs[todayKey].books[bookMeta.id].title;
+                saveDailyLogs(logs);
             }
         }
         function startReadingTimer() {
@@ -1069,7 +1378,23 @@
                 if (document.visibilityState === 'visible' && currentBook) {
                     const st = getMonthlyStats();
                     st.seconds = (st.seconds || 0) + 10;
+                    if (!st.books.includes(currentBook.id)) st.books.push(currentBook.id);
                     saveMonthlyStats(st);
+
+                    const logs = getDailyLogs();
+                    const todayKey = getDateKey(new Date());
+                    if (!logs[todayKey]) logs[todayKey] = { totalSeconds: 0, books: {} };
+                    logs[todayKey].totalSeconds = (logs[todayKey].totalSeconds || 0) + 10;
+                    if (!logs[todayKey].books[currentBook.id]) {
+                        logs[todayKey].books[currentBook.id] = {
+                            title: currentBook.title || '未命名書籍',
+                            format: currentBook.format || 'epub',
+                            seconds: 0
+                        };
+                    }
+                    logs[todayKey].books[currentBook.id].seconds += 10;
+                    logs[todayKey].books[currentBook.id].title = currentBook.title || logs[todayKey].books[currentBook.id].title;
+                    saveDailyLogs(logs);
                 }
             }, 10000);
         }
@@ -1084,6 +1409,238 @@
             const box2 = document.getElementById('helper-modal-stats');
             if (box1) box1.innerHTML = txt;
             if (box2) box2.innerHTML = txt;
+        }
+
+        /* =========================================================
+           閱讀統計頁面渲染（互動月曆 + 圖示 KPI + 趨勢圖 + 書籍排行）
+           ========================================================= */
+        function openStatsView() {
+            closeAllDrawers();
+            document.getElementById('bookshelf-view').classList.add('hidden');
+            document.getElementById('shelf-helper').classList.add('hidden');
+            document.getElementById('stats-view').classList.remove('hidden');
+            renderStatsDashboard();
+        }
+
+        function closeStatsView() {
+            document.getElementById('stats-view').classList.add('hidden');
+            document.getElementById('bookshelf-view').classList.remove('hidden');
+            updateHelperUI(false);
+        }
+
+        function calcReadingStreak(logs) {
+            let streak = 0;
+            const d = new Date();
+            const todayKey = getDateKey(d);
+            const hasToday = logs[todayKey] && (logs[todayKey].totalSeconds > 0 || Object.keys(logs[todayKey].books || {}).length > 0);
+            if (!hasToday) d.setDate(d.getDate() - 1);
+            for (let i = 0; i < 365; i++) {
+                const k = getDateKey(d);
+                const rec = logs[k];
+                if (rec && (rec.totalSeconds > 0 || Object.keys(rec.books || {}).length > 0)) {
+                    streak++;
+                    d.setDate(d.getDate() - 1);
+                } else break;
+            }
+            return streak;
+        }
+
+        function renderStatsDashboard() {
+            const logs = getDailyLogs();
+            const monthStr = `${statsYear}-${String(statsMonth + 1).padStart(2, '0')}`;
+            document.getElementById('stats-month-label').textContent = `${statsYear}年 ${statsMonth + 1}月`;
+
+            const daysInMonth = new Date(statsYear, statsMonth + 1, 0).getDate();
+            const firstWeekday = new Date(statsYear, statsMonth, 1).getDay();
+            const todayKey = getDateKey(new Date());
+
+            if (!statsSelectedDateKey.startsWith(monthStr + '-')) {
+                if (todayKey.startsWith(monthStr + '-')) statsSelectedDateKey = todayKey;
+                else {
+                    let found = `${monthStr}-01`;
+                    for (let d = daysInMonth; d >= 1; d--) {
+                        const dk = `${monthStr}-${String(d).padStart(2, '0')}`;
+                        if (logs[dk] && (logs[dk].totalSeconds > 0 || Object.keys(logs[dk].books || {}).length > 0)) {
+                            found = dk; break;
+                        }
+                    }
+                    statsSelectedDateKey = found;
+                }
+            }
+
+            let monthSeconds = 0;
+            let activeDays = 0;
+            const bookTotals = new Map();
+            const dailyMinutesArr = [];
+
+            const calGrid = document.getElementById('cal-grid');
+            calGrid.innerHTML = '';
+
+            for (let i = 0; i < firstWeekday; i++) {
+                const emp = document.createElement('div');
+                emp.className = 'cal-cell empty';
+                calGrid.appendChild(emp);
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dk = `${monthStr}-${String(day).padStart(2, '0')}`;
+                const rec = logs[dk];
+                const sec = rec ? (rec.totalSeconds || 0) : 0;
+                const bookEntries = rec && rec.books ? Object.entries(rec.books) : [];
+                const hasRead = sec > 0 || bookEntries.length > 0;
+                const mins = sec > 0 ? Math.max(1, Math.round(sec / 60)) : 0;
+
+                dailyMinutesArr.push({ day, dk, mins, hasRead });
+
+                if (hasRead) {
+                    activeDays++;
+                    monthSeconds += sec;
+                    bookEntries.forEach(([bid, binfo]) => {
+                        if (!bookTotals.has(bid)) {
+                            bookTotals.set(bid, { id: bid, title: binfo.title, format: binfo.format || 'epub', seconds: 0, days: 0 });
+                        }
+                        const item = bookTotals.get(bid);
+                        item.seconds += (binfo.seconds || 0);
+                        item.days += 1;
+                    });
+                }
+
+                const cell = document.createElement('div');
+                cell.className = 'cal-cell'
+                    + (hasRead ? ' has-read' : '')
+                    + (dk === todayKey ? ' today' : '')
+                    + (dk === statsSelectedDateKey ? ' selected' : '');
+
+                const firstBookTitle = bookEntries.length ? bookEntries[0][1].title : '';
+                const moreTag = bookEntries.length > 1 ? ` +${bookEntries.length - 1}` : '';
+                cell.innerHTML = `
+                    <div class="cal-day-top">
+                        <span>${day}</span>
+                        ${hasRead ? `<span class="cal-min-pill">${mins > 0 ? mins + '分' : '<1分'}</span>` : ''}
+                    </div>
+                    <div class="cal-book-preview" title="${escapeHtml(firstBookTitle)}">
+                        ${hasRead ? `📖 ${escapeHtml(firstBookTitle)}${moreTag}` : ''}
+                    </div>`;
+                cell.onclick = () => {
+                    statsSelectedDateKey = dk;
+                    renderStatsDashboard();
+                };
+                calGrid.appendChild(cell);
+            }
+
+            const totalMins = Math.round(monthSeconds / 60);
+            document.getElementById('cal-month-badge').textContent = `本月已讀 ${activeDays} 天 · 共 ${totalMins} 分鐘`;
+
+            renderSelectedDayDetail(statsSelectedDateKey, logs[statsSelectedDateKey]);
+
+            const streak = calcReadingStreak(logs);
+            document.getElementById('stats-kpi-grid').innerHTML = `
+                <div class="kpi-card">
+                    <div class="kpi-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    </div>
+                    <div><div class="kpi-val">${activeDays} 天</div><div class="kpi-lbl">本月閱讀天數</div></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    </div>
+                    <div><div class="kpi-val">${totalMins} 分</div><div class="kpi-lbl">本月累計時長</div></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                    </div>
+                    <div><div class="kpi-val">${bookTotals.size} 本</div><div class="kpi-lbl">本月閱讀書目</div></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+                    </div>
+                    <div><div class="kpi-val">${streak} 天</div><div class="kpi-lbl">目前連續閱讀</div></div>
+                </div>`;
+
+            const chartEl = document.getElementById('stats-bar-chart');
+            chartEl.innerHTML = '';
+            const maxMins = Math.max(10, ...dailyMinutesArr.map(x => x.mins));
+            dailyMinutesArr.forEach(item => {
+                const col = document.createElement('div');
+                col.className = 'bar-col' + (item.dk === statsSelectedDateKey ? ' selected' : '');
+                const hPct = item.mins > 0 ? Math.max(6, Math.round((item.mins / maxMins) * 82)) : 2;
+                col.innerHTML = `
+                    <div class="bar-val-lbl">${item.mins > 0 ? item.mins : ''}</div>
+                    <div class="bar-fill" style="height:${hPct}px;opacity:${item.hasRead ? 1 : 0.2}"></div>
+                    <div class="bar-day-lbl">${item.day}</div>`;
+                col.title = `${item.dk}：${item.mins} 分鐘`;
+                col.onclick = () => {
+                    statsSelectedDateKey = item.dk;
+                    renderStatsDashboard();
+                };
+                chartEl.appendChild(col);
+            });
+
+            const rankEl = document.getElementById('stats-book-rank');
+            rankEl.innerHTML = '';
+            const ranked = Array.from(bookTotals.values()).sort((a, b) => b.seconds - a.seconds);
+            if (!ranked.length) {
+                rankEl.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:8px 0;">這個月還沒有閱讀紀錄喔，快回書架翻開一本書吧！</div>';
+            } else {
+                const denom = Math.max(1, monthSeconds);
+                ranked.forEach((bk, idx) => {
+                    const share = Math.round((bk.seconds / denom) * 100);
+                    const row = document.createElement('div');
+                    row.className = 'rank-row';
+                    row.innerHTML = `
+                        <div class="rank-top">
+                            <span class="rank-title">
+                                <span style="color:var(--accent-strong);">#${idx + 1}</span>
+                                <span>📖 ${escapeHtml(bk.title)}</span>
+                                <span style="font-size:10.5px;color:var(--muted);">(${bk.days} 天)</span>
+                            </span>
+                            <span style="font-weight:700;color:var(--accent-strong);white-space:nowrap;">${formatMinutesText(bk.seconds)} (${share}%)</span>
+                        </div>
+                        <div class="rank-bar-track"><div class="rank-bar-fill" style="width:${Math.max(4, share)}%"></div></div>`;
+                    rankEl.appendChild(row);
+                });
+            }
+        }
+
+        function renderSelectedDayDetail(dateKey, rec) {
+            const box = document.getElementById('day-detail-box');
+            const entries = rec && rec.books ? Object.entries(rec.books) : [];
+            const totalSec = rec ? (rec.totalSeconds || 0) : 0;
+
+            let html = `<div class="day-detail-header">
+                <span>📌 ${dateKey} 閱讀明細</span>
+                <span style="color:var(--accent-strong);">共 ${formatMinutesText(totalSec)}</span>
+            </div>`;
+
+            if (!entries.length) {
+                html += `<div style="font-size:12.5px;color:var(--muted);padding:4px 0;">這一天沒有閱讀紀錄。</div>`;
+                box.innerHTML = html;
+                return;
+            }
+
+            box.innerHTML = html;
+            entries.sort((a, b) => (b[1].seconds || 0) - (a[1].seconds || 0)).forEach(([bid, info]) => {
+                const row = document.createElement('div');
+                row.className = 'day-book-row';
+                const inShelf = shelfBooks.some(b => b.id === bid);
+                row.innerHTML = `
+                    <div class="day-book-left">
+                        <span style="font-size:16px;">📘</span>
+                        <span class="day-book-name">${escapeHtml(info.title)}</span>
+                    </div>
+                    <span class="day-book-time">${formatMinutesText(info.seconds || 0)}${inShelf ? ' ▸' : ''}</span>`;
+                if (inShelf) {
+                    row.title = '點擊直接開啟此書續讀';
+                    row.onclick = () => {
+                        document.getElementById('stats-view').classList.add('hidden');
+                        openBookFromShelf(bid);
+                    };
+                }
+                box.appendChild(row);
+            });
         }
 
         /* =========================================================
@@ -1153,7 +1710,6 @@
             document.getElementById('helper-name-pill').textContent = meta.name;
             el.classList.remove('hidden');
 
-            // 定位（預設右下角，或依記憶位置並確保在視窗內）
             let left = settings.helperPos ? settings.helperPos.x : (window.innerWidth - 96);
             let top = settings.helperPos ? settings.helperPos.y : (window.innerHeight - 134);
             left = Math.max(8, Math.min(window.innerWidth - 84, left));
@@ -1184,13 +1740,15 @@
             window.__bubbleTimer = setTimeout(() => bubble.classList.add('hidden'), 8500);
         }
 
-        // 小幫手拖曳＋點擊區分
         function initHelperDrag() {
             const el = document.getElementById('shelf-helper');
             let dragging = false, moved = false, startX = 0, startY = 0, origX = 0, origY = 0;
+            let lastTouchTime = 0;
 
             function onDown(e) {
                 if (e.target.closest('.helper-bubble')) return;
+                if (e.type === 'mousedown' && Date.now() - lastTouchTime < 700) return;
+                if (e.type === 'touchstart') lastTouchTime = Date.now();
                 dragging = true; moved = false;
                 const pt = e.touches ? e.touches[0] : e;
                 startX = pt.clientX; startY = pt.clientY;
@@ -1202,23 +1760,25 @@
                 if (!dragging) return;
                 const pt = e.touches ? e.touches[0] : e;
                 const dx = pt.clientX - startX, dy = pt.clientY - startY;
-                if (Math.abs(dx) > 5 || Math.abs(dy) > 5) moved = true;
+                if (Math.abs(dx) > 6 || Math.abs(dy) > 6) moved = true;
                 if (!moved) return;
-                e.preventDefault();
+                if (e.cancelable) e.preventDefault();
                 const nx = Math.max(8, Math.min(window.innerWidth - 84, origX + dx));
                 const ny = Math.max(58, Math.min(window.innerHeight - 122, origY + dy));
                 el.style.left = nx + 'px';
                 el.style.top = ny + 'px';
                 adjustHelperBubbleAlign(nx, ny);
             }
-            function onUp() {
+            function onUp(e) {
                 if (!dragging) return;
+                if (e.type === 'touchend') lastTouchTime = Date.now();
                 dragging = false;
                 el.classList.remove('dragging');
                 if (moved) {
                     settings.helperPos = { x: parseFloat(el.style.left), y: parseFloat(el.style.top) };
                     saveSettings();
                 } else {
+                    if (e.type === 'touchend' && e.cancelable) e.preventDefault();
                     openHelperSearchModal();
                 }
             }
@@ -1227,7 +1787,7 @@
             window.addEventListener('mouseup', onUp);
             el.addEventListener('touchstart', onDown, { passive: true });
             window.addEventListener('touchmove', onMove, { passive: false });
-            window.addEventListener('touchend', onUp);
+            window.addEventListener('touchend', onUp, { passive: false });
             document.getElementById('helper-bubble-close').onclick = (e) => {
                 e.stopPropagation();
                 document.getElementById('helper-bubble').classList.add('hidden');
@@ -1242,8 +1802,8 @@
             const scopeSel = document.getElementById('helper-search-scope');
             scopeSel.innerHTML = '<option value="all">全部書架書籍</option>' +
                 shelfBooks.map(b => `<option value="${b.id}">${escapeHtml(b.title)}</option>`).join('');
+            modalOpenedAt = Date.now();
             document.getElementById('helper-search-modal').classList.remove('hidden');
-            setTimeout(() => document.getElementById('helper-search-input').focus(), 50);
         }
 
         async function runHelperSearch() {
@@ -1261,13 +1821,11 @@
             let hits = [];
 
             for (const b of targets) {
-                // 1. 搜尋書名
                 if (mode === 'all' || mode === 'title') {
                     if (b.title.toLowerCase().includes(qLower)) {
                         hits.push({ book: b, kind: 'title', label: '書名符合', snippet: b.title });
                     }
                 }
-                // 2. 搜尋書中文字
                 if (mode === 'all' || mode === 'content') {
                     const blobRec = await dbGet('books_blob', b.id);
                     if (!blobRec || !blobRec.buffer) continue;
@@ -1406,22 +1964,33 @@
         function showBookshelfView(showGreeting = false) {
             stopReadingTimer();
             document.getElementById('reader-view').classList.add('hidden');
+            document.getElementById('stats-view').classList.add('hidden');
             document.getElementById('bookshelf-view').classList.remove('hidden');
             localStorage.setItem(STORAGE_LAST_STATE, JSON.stringify({ view: 'shelf' }));
             loadBookshelf().then(() => updateHelperUI(showGreeting));
         }
 
         /* =========================================================
-           匯入書籍（本機 / 雲端）並擷取 EPUB 封面
+           匯入書籍（本機 / 雲端）並智慧判斷 EPUB / TXT 格式
            ========================================================= */
+        function detectBookFormat(fileName, arrayBuffer) {
+            const lower = (fileName || '').toLowerCase();
+            if (lower.endsWith('.epub')) return 'epub';
+            if (lower.endsWith('.txt')) return 'txt';
+            const head = new Uint8Array(arrayBuffer.slice(0, 4));
+            if (head.length >= 4 && head[0] === 0x50 && head[1] === 0x4B && head[2] === 0x03 && head[3] === 0x04) {
+                return 'epub';
+            }
+            return 'txt';
+        }
+
         async function importFileBuffer(fileName, arrayBuffer) {
-            const lower = fileName.toLowerCase();
-            const format = lower.endsWith('.epub') ? 'epub' : 'txt';
-            const title = fileName.replace(/\.(epub|txt)$/i, '');
+            const format = detectBookFormat(fileName, arrayBuffer);
+            const title = (fileName || '未命名書籍').replace(/\.(epub|txt)$/i, '');
             const id = 'bk_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
             let coverDataUrl = '';
 
-            showToast('正在匯入書籍...');
+            showToast(`正在匯入 ${format.toUpperCase()} 書籍...`);
             if (format === 'epub') {
                 await window.__engineReadyPromise;
                 coverDataUrl = await extractEpubCoverDataUrl(arrayBuffer);
@@ -1443,7 +2012,6 @@
             try {
                 const zip = await JSZip.loadAsync(buffer);
                 const names = Object.keys(zip.files);
-                // 優先從 OPF 找 cover，否則找檔名含 cover 的圖片
                 let targetPath = names.find(n => /cover.*\.(jpe?g|png|webp)$/i.test(n) && !zip.files[n].dir);
                 if (!targetPath) targetPath = names.find(n => /\.(jpe?g|png|webp)$/i.test(n) && !zip.files[n].dir);
                 if (!targetPath) return '';
@@ -1482,6 +2050,7 @@
             }
             closeAllDrawers();
             document.getElementById('bookshelf-view').classList.add('hidden');
+            document.getElementById('stats-view').classList.add('hidden');
             document.getElementById('shelf-helper').classList.add('hidden');
             document.getElementById('reader-view').classList.remove('hidden');
 
@@ -1489,10 +2058,9 @@
             currentBook.lastReadAt = Date.now();
             await dbPut('books_meta', currentBook);
             localStorage.setItem(STORAGE_LAST_STATE, JSON.stringify({ view: 'reader', bookId }));
-            recordBookReadThisMonth(bookId);
+            recordBookReadThisMonth(currentBook);
             startReadingTimer();
 
-            // 清理前一本資源
             cleanupCurrentReader();
             currentBookType = meta.format;
             layoutViewportFrame();
@@ -1519,7 +2087,6 @@
             updateSelectionBadge();
         }
 
-        // 精準計算邊距內側且對齊整數行高/行寬的閱讀框（徹底消除切字）
         function layoutViewportFrame() {
             const stage = document.getElementById('reader-stage');
             const frame = document.getElementById('viewport-frame');
@@ -1558,7 +2125,7 @@
         }
 
         /* =========================================================
-           EPUB 渲染引擎（按需圖片載入、防白底、直橫排精準翻頁不亂跳）
+           EPUB 渲染引擎（圖片完整單頁不切半、翻頁方向與頁數穩定不亂跳）
            ========================================================= */
         function buildEpubThemeObject() {
             const cs = getComputedStyle(document.body);
@@ -1582,6 +2149,146 @@
             };
         }
 
+        function buildEpubOverrideCss() {
+            const cs = getComputedStyle(document.body);
+            const fg = cs.getPropertyValue('--fg').trim();
+            const isVert = settings.direction === 'vertical';
+            const fontStack = getFontStack();
+            const linePx = Math.max(16, Math.round(settings.fontSize * settings.lineHeight));
+            const frameRect = document.getElementById('viewport-frame').getBoundingClientRect();
+            const boxW = Math.max(180, Math.floor(frameRect.width));
+            const boxH = Math.max(180, Math.floor(frameRect.height));
+            const maxImgW = Math.max(120, boxW - 8);
+            const maxImgH = Math.max(120, boxH - 8);
+            const headingSize = Math.min(Math.round(settings.fontSize * 1.18), Math.max(settings.fontSize, linePx - 2));
+
+            const layoutSpecificCss = isVert ? `
+                html, body {
+                    writing-mode: vertical-rl !important;
+                    -webkit-writing-mode: vertical-rl !important;
+                    direction: ltr !important;
+                    height: ${boxH}px !important;
+                    column-width: auto !important;
+                    -webkit-column-width: auto !important;
+                    column-count: auto !important;
+                    column-gap: 0 !important;
+                    -webkit-column-gap: 0 !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    border: 0 !important;
+                    box-sizing: border-box !important;
+                }
+                p, div, section, article, blockquote, ul, ol, li, pre, figure, header, footer, aside {
+                    margin-left: 0 !important;
+                    margin-right: 0 !important;
+                    padding-left: 0 !important;
+                    padding-right: 0 !important;
+                    border-left: 0 !important;
+                    border-right: 0 !important;
+                    box-sizing: border-box !important;
+                }
+                h1, h2, h3, h4, h5, h6 {
+                    font-size: ${headingSize}px !important;
+                    line-height: ${linePx}px !important;
+                    margin-left: ${linePx}px !important;
+                    margin-right: 0 !important;
+                    padding-left: 0 !important;
+                    padding-right: 0 !important;
+                    border-left: 0 !important;
+                    border-right: 0 !important;
+                }
+                hr {
+                    border: none !important;
+                    width: ${linePx}px !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+            ` : `
+                html, body {
+                    writing-mode: horizontal-tb !important;
+                    -webkit-writing-mode: horizontal-tb !important;
+                    direction: ltr !important;
+                }
+            `;
+
+            return `
+                html, body {
+                    background: transparent !important;
+                    background-color: transparent !important;
+                    color: ${fg} !important;
+                    font-family: ${fontStack} !important;
+                    font-size: ${settings.fontSize}px !important;
+                    line-height: ${linePx}px !important;
+                    letter-spacing: ${settings.letterSpacing}px !important;
+                }
+                ${layoutSpecificCss}
+                p, div, span, font, li, blockquote, section, article, td, th {
+                    background: transparent !important;
+                    background-color: transparent !important;
+                    color: inherit !important;
+                    font-family: inherit !important;
+                    line-height: inherit !important;
+                    letter-spacing: inherit !important;
+                    direction: ltr !important;
+                }
+                p, div, span, font, li, blockquote { font-size: inherit !important; }
+                rt { font-size: 0.48em !important; line-height: 1 !important; }
+                figure, .eink-img-wrap {
+                    break-inside: avoid !important;
+                    page-break-inside: avoid !important;
+                    -webkit-column-break-inside: avoid !important;
+                    text-indent: 0 !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    max-width: ${boxW}px !important;
+                    max-height: ${boxH}px !important;
+                    overflow: hidden !important;
+                }
+                img, svg {
+                    max-width: ${maxImgW}px !important;
+                    max-height: ${maxImgH}px !important;
+                    box-sizing: border-box !important;
+                    object-fit: contain !important;
+                    break-inside: avoid !important;
+                    page-break-inside: avoid !important;
+                    -webkit-column-break-inside: avoid !important;
+                }
+            `;
+        }
+
+        function injectOverrideCssToDoc(doc, cssText) {
+            if (!doc || !doc.head) return;
+            const isVert = settings.direction === 'vertical';
+            doc.documentElement.setAttribute('dir', 'ltr');
+            if (doc.body) {
+                doc.body.setAttribute('dir', 'ltr');
+                if (isVert) {
+                    doc.body.style.paddingLeft = '0px';
+                    doc.body.style.paddingRight = '0px';
+                    doc.body.style.marginLeft = '0px';
+                    doc.body.style.marginRight = '0px';
+                }
+            }
+            let styleEl = doc.getElementById('eink-override-style');
+            if (!styleEl) {
+                styleEl = doc.createElement('style');
+                styleEl.id = 'eink-override-style';
+                doc.head.appendChild(styleEl);
+            }
+            styleEl.textContent = cssText;
+        }
+
+        function applyEpubThemeAndLayout(updateThemeRegistry = true) {
+            if (!epubRendition) return;
+            const css = buildEpubOverrideCss();
+            if (updateThemeRegistry) {
+                epubRendition.themes.default(buildEpubThemeObject());
+            }
+            epubRendition.getContents().forEach(c => {
+                injectOverrideCssToDoc(c.document, css);
+            });
+        }
+
         async function openEpubBook(buffer, jumpTarget) {
             await window.__engineReadyPromise;
             if (!window.ePub || !window.JSZip) {
@@ -1593,7 +2300,6 @@
             const viewerEl = document.getElementById('epub-viewer');
             viewerEl.classList.remove('hidden');
 
-            // 建立 ZIP 索引供圖片按需載入
             try {
                 epubZip = await JSZip.loadAsync(buffer);
                 epubZipIndex.clear();
@@ -1609,7 +2315,16 @@
             epubBook = ePub(buffer);
             await epubBook.ready;
 
-            // 計算各章節權重以精準估算全書進度
+            // 強制將 EPUB OPF 翻頁方向對齊使用者設定（避免直橫排切換時頁數反向或亂跳）
+            const isVert = settings.direction === 'vertical';
+            const targetDir = isVert ? 'rtl' : 'ltr';
+            if (epubBook.package && epubBook.package.metadata) {
+                epubBook.package.metadata.direction = targetDir;
+            }
+            if (epubBook.spine) {
+                epubBook.spine.direction = targetDir;
+            }
+
             epubSpineWeights = [];
             let totalW = 0;
             const spineItems = epubBook.spine.spineItems || [];
@@ -1627,25 +2342,23 @@
             epubSpineWeights.total = Math.max(1, totalW);
 
             const box = layoutViewportFrame();
-            const isVert = settings.direction === 'vertical';
             epubRendition = epubBook.renderTo('epub-viewer', {
                 width: box.width,
                 height: box.height,
                 flow: 'paginated',
                 spread: 'none',
                 manager: 'default',
-                defaultDirection: isVert ? 'rtl' : 'ltr',
+                gap: 0,
+                defaultDirection: targetDir,
                 allowScriptedContent: false
             });
 
-            // 先註冊預設字體與排版主題，讓 epub.js 計算分頁前就套用正確尺寸
             epubRendition.themes.default(buildEpubThemeObject());
 
             epubRendition.hooks.content.register((contents) => {
                 applyEpubContentFixes(contents);
             });
 
-            // 僅在章節渲染完成時套用畫線，避免每次翻頁重繪造成跳動
             epubRendition.on('rendered', () => {
                 applyEpubSavedHighlights();
             });
@@ -1667,7 +2380,6 @@
                 }
             });
 
-            // 鍵盤與觸控滑動轉發
             epubRendition.on('keydown', handleKeyNav);
             let tx0 = 0;
             epubRendition.on('touchstart', e => { if (e.changedTouches && e.changedTouches[0]) tx0 = e.changedTouches[0].screenX; });
@@ -1680,11 +2392,9 @@
                 }
             });
 
-            // 載入目錄
             const nav = await epubBook.loaded.navigation;
             renderEpubToc(nav && nav.toc ? nav.toc : []);
 
-            // 決定起始位置
             let startTarget = currentBook.lastCfi || undefined;
             if (jumpTarget && jumpTarget.href) {
                 const matched = spineItems.find(s => jumpTarget.href.endsWith(s.href) || s.href.endsWith(jumpTarget.href.split('/').pop()));
@@ -1696,7 +2406,6 @@
         function findZipPath(rawSrc, baseDir = '') {
             if (!epubZip || !rawSrc) return null;
             let clean = decodeURIComponent(rawSrc.split('#')[0].split('?')[0]).replace(/\\/g, '/');
-            // 展開相對路徑 ../
             const parts = (baseDir ? baseDir.split('/') : []).concat(clean.split('/'));
             const stack = [];
             for (const p of parts) {
@@ -1707,7 +2416,6 @@
             const resolved = stack.join('/').toLowerCase();
             if (epubZipIndex.has(resolved)) return epubZipIndex.get(resolved);
             if (epubZipIndex.has(clean.replace(/^\/+/, '').toLowerCase())) return epubZipIndex.get(clean.replace(/^\/+/, '').toLowerCase());
-            // 嘗試尾段比對
             for (const [k, v] of epubZipIndex.entries()) {
                 if (!k.startsWith('base:') && (k.endsWith('/' + resolved) || k.endsWith('/' + clean.replace(/^(\.\.\/)+/, '').toLowerCase()))) return v;
             }
@@ -1724,88 +2432,53 @@
             return url;
         }
 
-        function applyEpubThemeAndLayout() {
-            if (!epubRendition) return;
-            const cs = getComputedStyle(document.body);
-            const fg = cs.getPropertyValue('--fg').trim();
-            const isVert = settings.direction === 'vertical';
-            const fontStack = getFontStack();
-            const linePx = Math.max(16, Math.round(settings.fontSize * settings.lineHeight));
-            const frameRect = document.getElementById('viewport-frame').getBoundingClientRect();
-            const boxH = Math.max(180, Math.floor(frameRect.height));
-
-            // 橫排模式不可覆寫 html/body 的 padding 與 column-width，否則會破壞 epub.js 分頁步距
-            // 直排模式解除 CSS 多欄改以自然 vertical-rl 橫向流式對齊整數行寬
-            const layoutSpecificCss = isVert ? `
-                html, body {
-                    writing-mode: vertical-rl !important;
-                    -webkit-writing-mode: vertical-rl !important;
-                    direction: ltr !important;
-                    height: ${boxH}px !important;
-                    column-width: auto !important;
-                    -webkit-column-width: auto !important;
-                    column-count: auto !important;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                }
-            ` : `
-                html, body {
-                    writing-mode: horizontal-tb !important;
-                    -webkit-writing-mode: horizontal-tb !important;
-                    direction: ltr !important;
-                }
-            `;
-
-            const css = `
-                html, body {
-                    background: transparent !important;
-                    background-color: transparent !important;
-                    color: ${fg} !important;
-                    font-family: ${fontStack} !important;
-                    font-size: ${settings.fontSize}px !important;
-                    line-height: ${linePx}px !important;
-                    letter-spacing: ${settings.letterSpacing}px !important;
-                }
-                ${layoutSpecificCss}
-                p, div, span, font, li, blockquote, section, article, td, th {
-                    background: transparent !important;
-                    background-color: transparent !important;
-                    color: inherit !important;
-                    font-family: inherit !important;
-                    line-height: inherit !important;
-                    letter-spacing: inherit !important;
-                    direction: ltr !important;
-                }
-                p, div, span, font, li, blockquote { font-size: inherit !important; }
-                rt { font-size: 0.55em !important; line-height: 1 !important; }
-                img, svg {
-                    max-width: 100% !important;
-                    max-height: 100% !important;
-                    object-fit: contain !important;
-                    break-inside: avoid !important;
-                }
-            `;
-            epubRendition.themes.default(buildEpubThemeObject());
-            epubRendition.getContents().forEach(c => {
-                const doc = c.document;
-                if (!doc) return;
-                doc.documentElement.setAttribute('dir', 'ltr');
-                if (doc.body) doc.body.setAttribute('dir', 'ltr');
-                let styleEl = doc.getElementById('eink-override-style');
-                if (!styleEl) {
-                    styleEl = doc.createElement('style');
-                    styleEl.id = 'eink-override-style';
-                    doc.head.appendChild(styleEl);
-                }
-                styleEl.textContent = css;
+        function alignVerticalMediaToPages(contents, boxW, boxH, linePx) {
+            if (settings.direction !== 'vertical' || !contents || !contents.document || !contents.document.body) return;
+            const doc = contents.document;
+            const body = doc.body;
+            const mediaEls = Array.from(doc.querySelectorAll('img, svg')).filter(el => {
+                if (el.tagName === 'IMG' && el.naturalWidth > 0 && el.naturalWidth < 40 && el.naturalHeight < 40) return false;
+                if (el.tagName === 'SVG' && !el.querySelector('image')) return false;
+                return true;
             });
+            for (const el of mediaEls) {
+                el.style.marginLeft = '0px';
+                el.style.marginRight = '0px';
+                const bodyRect = body.getBoundingClientRect();
+                const elRect = el.getBoundingClientRect();
+                const elW = Math.ceil(elRect.width || 0);
+                if (elW <= 0) continue;
+                const distFromRight = Math.max(0, Math.round(bodyRect.right - elRect.right));
+                const posInPage = distFromRight % boxW;
+                const isLarge = elW >= boxW * 0.42 || el.tagName === 'SVG';
+
+                if (isLarge) {
+                    const pushToNextPage = posInPage > 4 ? (boxW - posInPage) : 0;
+                    const centerR = Math.max(0, Math.floor((boxW - elW) / 2));
+                    const centerL = Math.max(0, boxW - elW - centerR);
+                    el.style.marginRight = (pushToNextPage + centerR) + 'px';
+                    el.style.marginLeft = centerL + 'px';
+                } else if (posInPage > 2 && (posInPage + elW) > boxW - 2) {
+                    const pushToNextPage = boxW - posInPage;
+                    const rem = elW % linePx;
+                    el.style.marginRight = pushToNextPage + 'px';
+                    el.style.marginLeft = (rem > 0 ? (linePx - rem) : 0) + 'px';
+                } else {
+                    const rem = elW % linePx;
+                    el.style.marginLeft = (rem > 0 ? (linePx - rem) : 0) + 'px';
+                }
+            }
+            if (typeof contents.expand === 'function') {
+                try { contents.expand(); } catch (e) {}
+            }
         }
 
         async function applyEpubContentFixes(contents) {
             const doc = contents.document;
             if (!doc || !doc.body) return;
+            const isVert = settings.direction === 'vertical';
+            const linePx = Math.max(16, Math.round(settings.fontSize * settings.lineHeight));
 
-            // 1. 清除寫死的背景色與行內字型，保留基本對齊
             doc.querySelectorAll('[style]').forEach(el => {
                 if (el.tagName === 'IMG' || el.tagName === 'SVG') return;
                 el.style.removeProperty('background');
@@ -1813,9 +2486,14 @@
                 el.style.removeProperty('color');
                 el.style.removeProperty('font-family');
                 if (!/^H[1-6]$/.test(el.tagName)) el.style.removeProperty('font-size');
+                if (isVert) {
+                    el.style.removeProperty('margin-left');
+                    el.style.removeProperty('margin-right');
+                    el.style.removeProperty('padding-left');
+                    el.style.removeProperty('padding-right');
+                }
             });
 
-            // 2. 簡繁即時轉換（保留原始文字以便切換回原文）
             if (settings.zhConvert !== 'none') {
                 const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
                 let node;
@@ -1825,15 +2503,31 @@
                 }
             }
 
-            applyEpubThemeAndLayout();
+            // 直接注入覆寫樣式至該章節文件，不重複呼叫 themes.default() 以免造成頁數亂跳
+            injectOverrideCssToDoc(doc, buildEpubOverrideCss());
 
-            // 3. 補載圖片（含相對路徑與 SVG xlink:href）並依裝置視窗等比例縮放
             const sectionHref = (contents.section && contents.section.href) || '';
             const baseDir = sectionHref.includes('/') ? sectionHref.slice(0, sectionHref.lastIndexOf('/')) : '';
             const box = document.getElementById('viewport-frame').getBoundingClientRect();
-            const maxW = Math.max(120, Math.floor(box.width - 8));
-            const maxH = Math.max(120, Math.floor(box.height - 8));
+            const boxW = Math.max(180, Math.floor(box.width));
+            const boxH = Math.max(180, Math.floor(box.height));
+            const maxW = Math.max(120, boxW - 8);
+            const maxH = Math.max(120, boxH - 8);
             let swappedImages = false;
+
+            const markImageWrapper = (mediaEl) => {
+                let p = mediaEl.parentElement;
+                while (p && p !== doc.body && /^(P|DIV|FIGURE|A|SPAN|CENTER)$/i.test(p.tagName)) {
+                    if ((p.textContent || '').trim().length === 0) {
+                        p.classList.add('eink-img-wrap');
+                        p.style.removeProperty('width');
+                        p.style.removeProperty('height');
+                    } else {
+                        break;
+                    }
+                    p = p.parentElement;
+                }
+            };
 
             const imgs = Array.from(doc.querySelectorAll('img'));
             for (const img of imgs) {
@@ -1845,12 +2539,25 @@
                 }
                 const isInlineIcon = img.naturalWidth > 0 && img.naturalWidth < 40 && img.naturalHeight < 40;
                 if (!isInlineIcon) {
-                    img.style.maxWidth = maxW + 'px';
-                    img.style.maxHeight = maxH + 'px';
-                    img.style.width = 'auto';
-                    img.style.height = 'auto';
-                    img.style.display = 'block';
-                    img.style.margin = '0 auto';
+                    img.removeAttribute('width');
+                    img.removeAttribute('height');
+                    img.style.setProperty('max-width', maxW + 'px', 'important');
+                    img.style.setProperty('max-height', maxH + 'px', 'important');
+                    img.style.setProperty('width', 'auto', 'important');
+                    img.style.setProperty('height', 'auto', 'important');
+                    img.style.setProperty('display', 'block', 'important');
+                    img.style.setProperty('margin', isVert ? 'auto 0' : '0 auto', 'important');
+                    img.style.setProperty('break-inside', 'avoid', 'important');
+                    img.style.setProperty('page-break-inside', 'avoid', 'important');
+                    img.style.setProperty('-webkit-column-break-inside', 'avoid', 'important');
+                    markImageWrapper(img);
+
+                    if (!img.complete) {
+                        img.addEventListener('load', () => {
+                            if (isVert) alignVerticalMediaToPages(contents, boxW, boxH, linePx);
+                            else if (typeof contents.expand === 'function') try { contents.expand(); } catch (e) {}
+                        }, { once: true });
+                    }
                 }
             }
 
@@ -1869,32 +2576,49 @@
                 }
                 const svg = simg.closest('svg');
                 if (svg) {
-                    svg.style.maxWidth = maxW + 'px';
-                    svg.style.maxHeight = maxH + 'px';
-                    svg.style.width = '100%';
-                    svg.style.height = maxH + 'px';
-                    svg.style.display = 'block';
-                    svg.style.margin = '0 auto';
+                    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+                    svg.style.setProperty('max-width', maxW + 'px', 'important');
+                    svg.style.setProperty('max-height', maxH + 'px', 'important');
+                    svg.style.setProperty('width', maxW + 'px', 'important');
+                    svg.style.setProperty('height', maxH + 'px', 'important');
+                    svg.style.setProperty('display', 'block', 'important');
+                    svg.style.setProperty('margin', isVert ? 'auto 0' : '0 auto', 'important');
+                    svg.style.setProperty('break-inside', 'avoid', 'important');
+                    svg.style.setProperty('page-break-inside', 'avoid', 'important');
+                    markImageWrapper(svg);
                 }
             }
-            // 僅在真的非同步補載了圖片時才重新展開容器，避免無謂重算導致頁碼跳動
-            if (swappedImages && typeof contents.expand === 'function') {
+
+            if (isVert) {
+                alignVerticalMediaToPages(contents, boxW, boxH, linePx);
+            } else if (swappedImages && typeof contents.expand === 'function') {
                 try { contents.expand(); } catch (e) {}
             }
         }
 
         function updateEpubProgress(loc) {
             if (!loc || !loc.start || !currentBook) return;
+            const disp = loc.start.displayed;
+            if (!disp || !disp.total || disp.total <= 0) return;
+
+            const safeTotal = Math.max(1, Math.round(disp.total));
+            const safePage = Math.max(1, Math.min(safeTotal, Math.round(disp.page || 1)));
             const cfi = loc.start.cfi;
-            const disp = loc.start.displayed || { page: 1, total: 1 };
-            const spineIdx = loc.start.index || 0;
-            let pct = 0;
-            if (epubSpineWeights[spineIdx]) {
+
+            let spineIdx = typeof loc.start.index === 'number' ? loc.start.index : -1;
+            if (spineIdx < 0 || !epubSpineWeights[spineIdx]) {
+                const href = loc.start.href || '';
+                spineIdx = epubSpineWeights.findIndex(w => w.href === href);
+            }
+
+            let pct = currentBook.progress || 0;
+            if (spineIdx >= 0 && epubSpineWeights[spineIdx]) {
                 const sw = epubSpineWeights[spineIdx];
-                const chapterRatio = disp.total > 0 ? (disp.page / disp.total) : 0;
+                const chapterRatio = safePage / safeTotal;
                 pct = Math.min(100, Math.max(0, Math.round(((sw.start + sw.weight * chapterRatio) / epubSpineWeights.total) * 100)));
             }
-            document.getElementById('page-status').textContent = `本章第 ${disp.page} / ${disp.total} 頁（全書 ${pct}%）`;
+
+            document.getElementById('page-status').textContent = `本章第 ${safePage} / ${safeTotal} 頁（全書 ${pct}%）`;
             document.getElementById('reader-progress-fill').style.width = pct + '%';
 
             currentBook.lastCfi = cfi;
@@ -1909,15 +2633,14 @@
             try {
                 const before = epubRendition.currentLocation();
                 const beforeCfi = before && before.start ? before.start.cfi : '';
-                const beforeIdx = before && before.start ? before.start.index : 0;
+                const beforeIdx = before && before.start && typeof before.start.index === 'number' ? before.start.index : 0;
                 const beforeDisp = (before && before.start && before.start.displayed) || { page: 1, total: 1 };
 
-                // 等待真實的 relocated 事件（最長 450ms），避免太早判斷而誤跳章節
                 const waitRelocate = new Promise((resolve) => {
                     let done = false;
                     const timer = setTimeout(() => {
                         if (!done) { done = true; epubRelocateResolver = null; resolve(null); }
-                    }, 450);
+                    }, 750);
                     epubRelocateResolver = (loc) => {
                         if (!done) { done = true; clearTimeout(timer); resolve(loc); }
                     };
@@ -1929,12 +2652,12 @@
                 const relocatedLoc = await waitRelocate;
                 const after = relocatedLoc || epubRendition.currentLocation();
                 const afterCfi = after && after.start ? after.start.cfi : '';
+                const afterIdx = after && after.start && typeof after.start.index === 'number' ? after.start.index : beforeIdx;
 
-                // 只有在「確實位於本章邊界」且原地未動時，才安全切換到相鄰章節，絕不在章節中間亂跳
                 const atBoundary = dir === 'next'
                     ? (beforeDisp.page >= beforeDisp.total)
                     : (beforeDisp.page <= 1);
-                if (atBoundary && beforeCfi && afterCfi === beforeCfi && epubBook && epubBook.spine) {
+                if (atBoundary && beforeCfi && afterCfi === beforeCfi && afterIdx === beforeIdx && epubBook && epubBook.spine) {
                     const targetIdx = dir === 'next' ? beforeIdx + 1 : beforeIdx - 1;
                     const item = epubBook.spine.get(targetIdx);
                     if (item) await epubRendition.display(item.href);
@@ -2003,7 +2726,6 @@
             let i = 0;
             while (i < displayFull.length) {
                 let end = Math.min(displayFull.length, i + capacity);
-                // 優先在換行處斷頁，讓閱讀更自然
                 if (end < displayFull.length) {
                     const nl = displayFull.lastIndexOf('\n', end);
                     if (nl > i + capacity * 0.65) end = nl + 1;
@@ -2026,7 +2748,6 @@
             viewer.style.letterSpacing = settings.letterSpacing + 'px';
 
             let html = escapeHtml(txtPages[txtPageIdx] || '');
-            // 套用本頁已儲存的畫線
             const notes = await getBookNotes();
             const pageHls = (notes.highlights || []).filter(h => h.pageIdx === txtPageIdx);
             pageHls.forEach(h => {
@@ -2059,7 +2780,6 @@
             const frame = document.getElementById('viewport-frame');
             layer.innerHTML = '';
 
-            // 直排模式下，下一頁是往左翻、上一頁是往右翻
             const visualDir = settings.direction === 'vertical' ? (dir === 'next' ? 'prev' : 'next') : dir;
 
             if (settings.pageFx === 'ripple') {
@@ -2261,7 +2981,6 @@
             document.documentElement.style.setProperty('--bg-petal-opacity', (settings.petalOpacity / 100).toFixed(2));
             document.documentElement.style.setProperty('--reader-font', getFontStack());
 
-            // 產生與主題色呼應的淡花瓣布紋 SVG 背景
             const petalColor = getComputedStyle(document.body).getPropertyValue('--petal-color').trim() || '#B9AECB';
             const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'>
                 <g fill='${petalColor}' opacity='0.55'>
@@ -2275,7 +2994,6 @@
                 </g></svg>`;
             document.getElementById('petal-bg-layer').style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 
-            // 同步控制項 UI
             document.querySelectorAll('#theme-swatch-grid .theme-swatch-btn').forEach(b => {
                 b.classList.toggle('active', b.dataset.theme === settings.theme);
             });
@@ -2310,8 +3028,11 @@
                 const box = layoutViewportFrame();
                 if (currentBookType === 'epub' && epubRendition) {
                     const keepCfi = currentBook.lastCfi;
-                    applyEpubThemeAndLayout();
+                    applyEpubThemeAndLayout(true);
                     epubRendition.resize(box.width, box.height);
+                    if (settings.direction === 'vertical') {
+                        epubRendition.getContents().forEach(c => alignVerticalMediaToPages(c, box.width, box.height, box.linePx));
+                    }
                     if (keepCfi) epubRendition.display(keepCfi).catch(() => {});
                 } else if (currentBookType === 'txt') {
                     repaginateTxt(currentBook.lastTxtRatio || 0);
@@ -2325,7 +3046,6 @@
             saveSettings();
             applyVisualTheme();
             if (currentBook && currentBookType === 'epub' && epubRawBuffer) {
-                // 切換直橫排時重新初始化 EPUB 渲染器，確保 epub.js 翻頁方向與捲動軸完全同步
                 const buf = epubRawBuffer;
                 cleanupCurrentReader();
                 layoutViewportFrame();
@@ -2336,7 +3056,6 @@
         }
 
         async function restoreSavedAssets() {
-            // 載入已儲存的自訂字體
             const fontAsset = await dbGet('assets', 'custom_font');
             if (fontAsset && fontAsset.buffer) {
                 try {
@@ -2348,7 +3067,6 @@
                     document.getElementById('custom-font-status').textContent = `已離線保存：${fontAsset.fileName}`;
                 } catch (e) {}
             }
-            // 載入已儲存的自訂背景圖
             const bgAsset = await dbGet('assets', 'custom_bg');
             if (bgAsset && bgAsset.dataUrl) {
                 const bgLayer = document.getElementById('custom-bg-layer');
@@ -2368,6 +3086,7 @@
         };
         function openDrawer(id) {
             closeAllDrawers();
+            modalOpenedAt = Date.now();
             document.getElementById(id).classList.remove('hidden');
         }
 
@@ -2375,19 +3094,50 @@
            事件綁定與初始化
            ========================================================= */
         function bindEvents() {
-            // 點擊抽屜/彈窗半透明底層關閉
             document.querySelectorAll('.drawer-backdrop').forEach(el => {
-                el.addEventListener('click', (e) => { if (e.target === el) closeAllDrawers(); });
+                el.addEventListener('click', (e) => {
+                    if (Date.now() - modalOpenedAt < 350) return;
+                    if (e.target === el) closeAllDrawers();
+                });
             });
             document.querySelectorAll('.modal-backdrop').forEach(el => {
-                el.addEventListener('click', (e) => { if (e.target === el) closeModals(); });
+                el.addEventListener('click', (e) => {
+                    if (Date.now() - modalOpenedAt < 350) return;
+                    if (e.target === el) closeModals();
+                });
             });
 
-            // 書架按鈕
+            // 書架按鈕 & 閱讀統計按鈕
+            document.getElementById('shelf-stats-btn').onclick = openStatsView;
+            document.getElementById('stats-back-btn').onclick = closeStatsView;
+            document.getElementById('stats-prev-month').onclick = () => {
+                statsMonth--;
+                if (statsMonth < 0) { statsMonth = 11; statsYear--; }
+                renderStatsDashboard();
+            };
+            document.getElementById('stats-next-month').onclick = () => {
+                statsMonth++;
+                if (statsMonth > 11) { statsMonth = 0; statsYear++; }
+                renderStatsDashboard();
+            };
+            document.getElementById('stats-today-btn').onclick = () => {
+                const now = new Date();
+                statsYear = now.getFullYear();
+                statsMonth = now.getMonth();
+                statsSelectedDateKey = getDateKey(now);
+                renderStatsDashboard();
+            };
+
             document.getElementById('shelf-import-btn').onclick = () => document.getElementById('file-input').click();
             document.getElementById('reader-import-btn').onclick = () => document.getElementById('file-input').click();
-            document.getElementById('shelf-cloud-btn').onclick = () => document.getElementById('cloud-modal').classList.remove('hidden');
-            document.getElementById('reader-cloud-btn').onclick = () => document.getElementById('cloud-modal').classList.remove('hidden');
+            document.getElementById('shelf-cloud-btn').onclick = () => {
+                modalOpenedAt = Date.now();
+                document.getElementById('cloud-modal').classList.remove('hidden');
+            };
+            document.getElementById('reader-cloud-btn').onclick = () => {
+                modalOpenedAt = Date.now();
+                document.getElementById('cloud-modal').classList.remove('hidden');
+            };
             document.getElementById('shelf-settings-btn').onclick = () => { renderMonthlyStatsUI(); openDrawer('shelf-settings-drawer'); };
             document.getElementById('shelf-prev-btn').onclick = () => { if (shelfPage > 0) { shelfPage--; renderBookshelf(); } };
             document.getElementById('shelf-next-btn').onclick = () => { shelfPage++; renderBookshelf(); };
@@ -2400,7 +3150,7 @@
                     settings.theme = btn.dataset.theme;
                     saveSettings();
                     applyVisualTheme();
-                    applyEpubThemeAndLayout();
+                    applyEpubThemeAndLayout(true);
                 };
             });
 
@@ -2456,13 +3206,18 @@
                 }
             });
 
-            // 匯入檔案
+            // 匯入檔案（相容所有手機瀏覽器與 WebView）
             document.getElementById('file-input').onchange = async (e) => {
-                const file = e.target.files[0];
-                e.target.value = '';
+                const file = e.target.files && e.target.files[0];
                 if (!file) return;
-                const buf = await file.arrayBuffer();
-                await importFileBuffer(file.name, buf);
+                try {
+                    const buf = await readFileAsArrayBuffer(file);
+                    await importFileBuffer(file.name, buf);
+                } catch (err) {
+                    showToast('讀取檔案失敗，請確認檔案未損毀或重新選取');
+                } finally {
+                    e.target.value = '';
+                }
             };
 
             // 雲端匯入
@@ -2490,23 +3245,28 @@
 
             document.getElementById('import-font-btn').onclick = () => document.getElementById('font-file-input').click();
             document.getElementById('font-file-input').onchange = async (e) => {
-                const file = e.target.files[0];
-                e.target.value = '';
+                const file = e.target.files && e.target.files[0];
                 if (!file) return;
-                const buffer = await file.arrayBuffer();
-                const name = 'UserCustomFont_' + Date.now();
-                const face = new FontFace(name, buffer);
-                await face.load();
-                document.fonts.add(face);
-                await dbPut('assets', { key: 'custom_font', name, fileName: file.name, buffer });
-                settings.customFontName = name;
-                settings.fontFamily = 'custom';
-                saveSettings();
-                document.getElementById('custom-font-opt').classList.remove('hidden');
-                document.getElementById('custom-font-status').textContent = `已離線保存：${file.name}`;
-                applyVisualTheme();
-                refreshReaderLayout();
-                showToast('自訂字體已離線保存並套用');
+                try {
+                    const buffer = await readFileAsArrayBuffer(file);
+                    const name = 'UserCustomFont_' + Date.now();
+                    const face = new FontFace(name, buffer);
+                    await face.load();
+                    document.fonts.add(face);
+                    await dbPut('assets', { key: 'custom_font', name, fileName: file.name, buffer });
+                    settings.customFontName = name;
+                    settings.fontFamily = 'custom';
+                    saveSettings();
+                    document.getElementById('custom-font-opt').classList.remove('hidden');
+                    document.getElementById('custom-font-status').textContent = `已離線保存：${file.name}`;
+                    applyVisualTheme();
+                    refreshReaderLayout();
+                    showToast('自訂字體已離線保存並套用');
+                } catch (err) {
+                    showToast('匯入字體失敗，請確認檔案為 .ttf / .otf / .woff2');
+                } finally {
+                    e.target.value = '';
+                }
             };
 
             // 閱讀設定控制項
@@ -2537,8 +3297,7 @@
             // 背景圖
             document.getElementById('import-bg-btn').onclick = () => document.getElementById('bg-file-input').click();
             document.getElementById('bg-file-input').onchange = (e) => {
-                const file = e.target.files[0];
-                e.target.value = '';
+                const file = e.target.files && e.target.files[0];
                 if (!file) return;
                 const reader = new FileReader();
                 reader.onload = async () => {
@@ -2547,6 +3306,7 @@
                     bgLayer.style.backgroundImage = `url("${reader.result}")`;
                     bgLayer.style.display = 'block';
                     showToast('已套用自訂背景圖');
+                    e.target.value = '';
                 };
                 reader.readAsDataURL(file);
             };
@@ -2600,7 +3360,7 @@
             settings.darkMode = !settings.darkMode;
             saveSettings();
             applyVisualTheme();
-            applyEpubThemeAndLayout();
+            applyEpubThemeAndLayout(true);
         }
 
         // 啟動流程
@@ -2624,7 +3384,6 @@
                 await openBookFromShelf(last.bookId);
             } else {
                 updateHelperUI(true);
-                hasShownLoginReminder = true;
             }
 
             if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
